@@ -24,7 +24,8 @@ with verse-anchored evidence.
 
 ## Requirements
 
-- Python 3.10+, `make`, `wget`, `unzip`
+- Python 3.10+, `make`, `wget` (zip extract uses Python's `zipfile` — no
+  system `unzip` needed)
 - [Ollama](https://ollama.com) with the embedding model pulled:
   `ollama pull bge-m3` (embeddings are **always** local bge-m3 — the stored
   page vectors are bge-m3, so this is not swappable per machine)
@@ -32,21 +33,31 @@ with verse-anchored evidence.
 - For cloud agents (`CLOUD=1`): `OPENAI_API_KEY` in a local `.env`
   (not committed)
 
+**Order matters.** `pages-build` / `fts-build` / `embed-pages` / `agent-run`
+all need sections in the DB. If ingest failed partway, re-run from
+`make tanakh-all bible-web-all quran-all` before those later targets — an
+empty DB quietly produces `0 sections` / a no-op agent run.
+
 ## Quickstart on a fresh machine
 
-The DB, raw texts, and embeddings are regenerable and not in git. Full rebuild:
+The DB, raw texts, and embeddings are regenerable and not in git. Full rebuild
+— **order matters**: pages/agents need sections in the DB first.
 
 ```bash
+git pull                     # if already cloned
 make py-venv                 # venv + requirements.txt
 make db-init                 # SQLite schema -> db/atlas.db
 make tanakh-all bible-web-all quran-all   # fetch, verify, unpack, ingest
+# sanity — expect hundreds of sections, not 0:
+#   make tanakh-stats bible-web-stats quran-stats
 make pages-build             # verse-aligned retrieval pages
 make fts-build               # BM25 index (diacritic-stripped He/Ar)
-make embed-pages             # bge-m3 page embeddings via Ollama
+make embed-pages             # bge-m3 page embeddings via Ollama (long pole)
 make validate                # bibliography vs disk vs DB
 ```
 
-Fetch + parse is minutes; `embed-pages` is the long pole (fast on a 4090).
+If ingest failed partway (e.g. missing tools), re-run from `tanakh-all` before
+`pages-build` / `agent-run` — an empty DB quietly produces `0 sections`.
 
 ## Running the concept-extraction agents
 

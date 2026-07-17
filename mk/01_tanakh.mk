@@ -17,14 +17,11 @@ tanakh-fetch: ## Download UXLC Tanakh XML archive
 	@echo "OK: $(TANAKH_ZIP)"
 
 tanakh-verify: ## Zip integrity + expected book count (39 books + DH variants + header/index)
-	@unzip -tq $(TANAKH_ZIP) >/dev/null && echo "zip OK"
-	@n=$$(unzip -l $(TANAKH_ZIP) '*.xml' | grep -c '\.xml$$'); \
-	echo "xml files: $$n"; \
-	[ "$$n" -ge 39 ] || { echo "ERROR: expected >= 39 book XMLs"; exit 1; }
+	@$(PY) scripts/ziputil.py test $(TANAKH_ZIP)
+	@$(PY) scripts/ziputil.py count $(TANAKH_ZIP) --suffix .xml --min 39 --label "xml files"
 
 tanakh-unpack: ## Extract XML books
-	@unzip -oq $(TANAKH_ZIP) -d $(TANAKH_DIR)/books
-	@echo "unpacked to $(TANAKH_DIR)/books"
+	@$(PY) scripts/ziputil.py extract $(TANAKH_ZIP) $(TANAKH_DIR)/books
 
 tanakh-ingest: ## (Phase 1) Parse UXLC XML -> sources/sections rows
 	@$(PY) scripts/ingest_tanakh.py --dir $(TANAKH_DIR)/books --db $(DB) --source-id $(TANAKH_ID)

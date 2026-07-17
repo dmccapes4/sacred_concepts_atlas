@@ -17,14 +17,11 @@ bible-web-fetch: ## Download WEB Bible USFM archive
 	@echo "OK: $(BIBLE_WEB_ZIP)"
 
 bible-web-verify: ## Zip integrity + expected USFM count (66 canonical + apocrypha + front matter)
-	@unzip -tq $(BIBLE_WEB_ZIP) >/dev/null && echo "zip OK"
-	@n=$$(unzip -l $(BIBLE_WEB_ZIP) '*.usfm' | grep -c '\.usfm$$'); \
-	echo "usfm files: $$n"; \
-	[ "$$n" -ge 66 ] || { echo "ERROR: expected >= 66 USFM files"; exit 1; }
+	@$(PY) scripts/ziputil.py test $(BIBLE_WEB_ZIP)
+	@$(PY) scripts/ziputil.py count $(BIBLE_WEB_ZIP) --suffix .usfm --min 66 --label "usfm files"
 
 bible-web-unpack: ## Extract USFM books
-	@unzip -oq $(BIBLE_WEB_ZIP) -d $(BIBLE_WEB_DIR)/usfm
-	@echo "unpacked to $(BIBLE_WEB_DIR)/usfm"
+	@$(PY) scripts/ziputil.py extract $(BIBLE_WEB_ZIP) $(BIBLE_WEB_DIR)/usfm
 
 bible-web-ingest: ## (Phase 1) Parse USFM -> sources/sections rows (66-book canon)
 	@$(PY) scripts/ingest_bible_web.py --dir $(BIBLE_WEB_DIR)/usfm --db $(DB) --source-id $(BIBLE_WEB_ID)
