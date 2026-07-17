@@ -366,6 +366,10 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", required=True)
     ap.add_argument("--model", default="atlas-conceptor")
+    ap.add_argument("--router-model", default=None,
+                    help="separate model for the router role (default: same as "
+                         "--model); use on dual-model hosts, e.g. "
+                         "--router-model atlas-router --model atlas-classifier")
     ap.add_argument("--embed-model", default="bge-m3")
     ap.add_argument("--tau0", type=float, default=0.55)
     ap.add_argument("--tau-max", type=float, default=0.92)
@@ -385,6 +389,7 @@ def main() -> int:
     args = ap.parse_args()
     if args.cloud:
         load_env()
+    router_model = args.router_model or args.model
 
     con = db_connect(args.db)
 
@@ -406,10 +411,13 @@ def main() -> int:
             "VALUES (?,?,?,?,?)",
             (run_id,
              ("cloud:" + ",".join(f"{r}={m}" for r, m in CLOUD_ROLE_MODELS.items())
-              if args.cloud else args.model),
+              if args.cloud else
+              (f"router={router_model},classifier={args.model}"
+               if router_model != args.model else args.model)),
              args.embed_model, prompts_sha, json.dumps({
                 "tau0": args.tau0, "tau_max": args.tau_max, "tau_k": args.tau_k,
                 "order": args.order, "seed": args.seed, "cloud": args.cloud,
+                "router_model": router_model,
                 "cloud_models": CLOUD_ROLE_MODELS if args.cloud else None})))
         con.commit()
 
@@ -458,11 +466,22 @@ def main() -> int:
         say("☁️", "cloud agents: " + ", ".join(
             f"{r}={m}" for r, m in CLOUD_ROLE_MODELS.items())
             + " · embeddings stay local (bge-m3)")
-    say("🚀", f"model={args.model} embed={args.embed_model} "
+    model_desc = (args.model if router_model == args.model
+                  else f"router={router_model} classifier={args.model}")
+    say("🚀", f"model={model_desc} embed={args.embed_model} "
         f"τ0={args.tau0} τmax={args.tau_max} k={args.tau_k} order={args.order}")
     say("📚", f"{len(todo)} sections to process ({total_done} already done) · "
         f"🧮 registry={len(registry)}")
 
+    def fmt_dur(s: float) -> str:
+        s = int(s)
+        if s >= 3600:
+            return f"{s // 3600}h{(s % 3600) // 60:02d}m"
+        if s >= 60:
+            return f"{s // 60}m{s % 60:02d}s"
+        return f"{s}s"
+
+    loop_t0 = time.time()
     for idx, section_id in enumerate(todo, start=1):
         t0 = time.time()
         ctx = section_context(con, section_id)
@@ -478,7 +497,7 @@ def main() -> int:
             f"KNOWN CONCEPTS ({len(names)}):\n{names_block}\n\n"
             f"SECTION TEXT:\n{ctx['text']}")
         router_out, r_attempts = call_agent(
-            args.model, router_sys, router_user,
+            router_model, router_sys, router_user,
             think=False, schema=ROUTER_SCHEMA, seed_base=seed_base, log=log,
             label="router", cloud=args.cloud)
         say("🧩", f"screened {len(names)} known names → "
@@ -676,8 +695,12 @@ def main() -> int:
         for r in rejected:
             say("🚧", f"“{r['name']}” conf {r['confidence']:.2f} < τ {r['threshold']} "
                 f"→ weight to {r['nearest'] or '(none)'}", 1)
+        avg_s = (time.time() - loop_t0) / idx
+        eta_s = avg_s * (len(todo) - idx)
         say("✅", f"committed {len(merged)} concepts · 🧮 registry {len(registry)} "
             f"τ {threshold:.2f} · ⏱️ {time.time() - t0:.0f}s", 1)
+        say("⏳", f"{idx}/{len(todo)} done · avg {fmt_dur(avg_s)}/section · "
+            f"ETA {fmt_dur(eta_s)} (~{time.strftime('%H:%M', time.localtime(time.time() + eta_s))})", 1)
 
     remaining = ordered_sections(con, run_id, args.order)
     if remaining:

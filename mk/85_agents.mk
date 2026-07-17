@@ -12,21 +12,28 @@ TAU_K    ?= 150
 LIMIT    ?= 0        # 0 = all remaining sections
 ORDER    ?= interleaved   # interleaved (fairness prior) | temporal (Tanakh->Bible->Quran lineage prior)
 CLOUD    ?=            # CLOUD=1 -> OpenAI agents (OPENAI_API_KEY in .env)
+ROUTER_MODEL ?=        # optional split: ROUTER_MODEL=atlas-router AGENT_MODEL=atlas-classifier (4090)
 
-.PHONY: agent-modelfile agent-run agent-resume concepts-export concepts-stats
+.PHONY: agent-modelfile agent-modelfiles agent-run agent-resume concepts-export concepts-stats
 
-agent-modelfile: ## Build the Ollama model from the Modelfile
+agent-modelfile: ## Build the single-model Ollama agent (3060 config)
 	@ollama create $(AGENT_MODEL) -f modelfiles/atlas-conceptor.Modelfile
+
+agent-modelfiles: ## Build the dual-model pair (4090 config: atlas-router + atlas-classifier)
+	@ollama create atlas-router -f modelfiles/atlas-router.Modelfile
+	@ollama create atlas-classifier -f modelfiles/atlas-classifier.Modelfile
 
 agent-run: ## Full concept-extraction pass (new run_id; CLOUD=1 for OpenAI)
 	@$(PY) scripts/agent_conceptor.py --db $(DB) --model $(AGENT_MODEL) \
 		--embed-model $(EMBED_MODEL) \
 		--tau0 $(TAU_0) --tau-max $(TAU_MAX) --tau-k $(TAU_K) \
-		--order $(ORDER) --limit $(LIMIT) $(if $(CLOUD),--cloud)
+		--order $(ORDER) --limit $(LIMIT) $(if $(CLOUD),--cloud) \
+		$(if $(ROUTER_MODEL),--router-model $(ROUTER_MODEL))
 
 agent-resume: ## Resume most recent unfinished run (CLOUD=1 switches agents to OpenAI)
 	@$(PY) scripts/agent_conceptor.py --db $(DB) --model $(AGENT_MODEL) \
-		--embed-model $(EMBED_MODEL) --resume $(if $(CLOUD),--cloud)
+		--embed-model $(EMBED_MODEL) --resume $(if $(CLOUD),--cloud) \
+		$(if $(ROUTER_MODEL),--router-model $(ROUTER_MODEL))
 concepts-export: ## Export concept registry to JSON (browsable hash view)
 	@$(SQL) --json "SELECT concept_id, name, definition, created_by, status FROM concepts ORDER BY created_at;" > concepts.json
 	@echo "wrote concepts.json"

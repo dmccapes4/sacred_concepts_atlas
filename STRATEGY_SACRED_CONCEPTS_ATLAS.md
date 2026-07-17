@@ -419,6 +419,56 @@ sampling follows Qwen3's per-mode recommendations: the router is a wide-recall
 screen and runs in non-thinking mode (3–5× faster); the classifier does the
 judgment and keeps thinking on.
 
+### Dual-model config on the 4090 (adopted 2026-07-17)
+
+The one-model constraint above is a 3060 constraint. On the 4090 (24 GB) two
+models co-reside, so the router and classifier can be sized independently:
+
+| Role | Model | Modelfile | Mode |
+|---|---|---|---|
+| Router | `qwen3:8b` (5.2 GB) | `atlas-router` | non-thinking, temp 0.7/top_p 0.8 |
+| Classifier | `qwen3:14b` (9.3 GB) | `atlas-classifier` | thinking, temp 0.6/top_p 0.95 |
+| Embeddings | `bge-m3` (~1.2 GB) | — | — |
+
+VRAM: ~15.7 GB of weights + two 16k KV caches ≈ 19–20 GB, comfortably inside
+24 GB. Set `OLLAMA_MAX_LOADED_MODELS=3` and `OLLAMA_KEEP_ALIVE=-1` so all
+three stay resident — the loop alternates router/classifier/embed on every
+section, and any eviction reintroduces exactly the reload thrash the 3060
+design avoided. Both Modelfiles raise `num_ctx` to 16384 (classifier prompts
+with candidates + verse evidence reach ~19k chars late-run; 8k was the 3060
+ceiling, not the design target).
+
+Usage: `make agent-modelfiles` builds the pair; then
+`make agent-run ROUTER_MODEL=atlas-router AGENT_MODEL=atlas-classifier`.
+A split run is recorded in `runs.model` as
+`router=atlas-router,classifier=atlas-classifier`, so it is attributable in
+the bias research alongside single-model and cloud runs.
+
+**Why not `llama3.2` (3B) as the router.** The instinct is sound — a router
+is a wide-recall screen, and a 2 GB model that answers in a fraction of the
+time is exactly what you'd reach for (it works well in that role in
+English-only pipelines). It fails here on language, not on size: our router
+reads the raw section text in Hebrew and Arabic and must copy verbatim anchor
+verses and judge which known concepts plausibly apply. Llama 3.2's official
+language coverage is English, German, French, Italian, Portuguese, Hindi,
+Spanish, Thai — no Hebrew, no Arabic, i.e. two-thirds of the corpus. A router
+that under-reads Tanakh and Quran sections doesn't produce noisy candidates
+the classifier can veto; it produces *silent misses*, and the classifier
+never sees what the router dropped (recall errors at stage 1 are
+unrecoverable by design). `llama3.1:8b` has the same language list. Qwen3 is
+the only family on the host with credible Hebrew + strong Arabic, which is
+why both roles stay in-family and the speed lever is 8b-vs-14b rather than
+Qwen-vs-Llama. On a 4090 the non-thinking 8b router is fast enough that the
+3B's latency advantage buys little anyway.
+
+Side benefit for the bias research (`RESEARCH_MODEL_INTERPRETIVE_BIAS.md`):
+keeping router and classifier in one model family preserves clean attribution
+— a `qwen3:8b`+`qwen3:14b` run varies capability within one interpretive
+lineage, whereas a Llama router under a Qwen classifier would confound reader
+bias with router recall bias. For bias-comparison runs proper, prefer the
+homogeneous configs (same model both roles) so each concept space has a
+single reader of record.
+
 ### Sampling parameters (and why temperature is not 0.0)
 
 The conceptor is heuristic-management infrastructure, so greedy decoding

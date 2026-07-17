@@ -1,0 +1,22 @@
+# atlas-classifier — classifier role on dual-model hosts (RTX 4090: pairs
+# with atlas-router).
+# Build:   ollama create atlas-classifier -f modelfiles/atlas-classifier.Modelfile
+#
+# qwen3:14b: the classifier is the judgment stage (think=on) — final
+# signatures, novelty confidence, merge resistance — and the strongest
+# multilingual model that fits alongside the 8b router + bge-m3 in 24 GB.
+#
+# Thin on purpose: doctrine ships per call as system messages
+# (doctrine_core.md + classifier_role.md, think=on). Sampling below is the
+# Qwen3 vendor thinking-mode setting.
+# num_ctx 16384: classifier prompts (candidates + evidence + section) hit
+# ~19k chars late-run — 8k ctx would overflow once thinking is included.
+
+FROM qwen3:14b
+
+PARAMETER temperature 0.6
+PARAMETER top_p 0.95
+PARAMETER top_k 20
+PARAMETER min_p 0.0
+PARAMETER repeat_penalty 1.0
+PARAMETER num_ctx 16384

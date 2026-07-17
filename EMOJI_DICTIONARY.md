@@ -61,6 +61,7 @@ use them consistently.
 | 💡 | New-concept proposal (pre-gate; may become 🌱 or 🚧) |
 | § | Report section title |
 | ⏱️ | Stage timing |
+| ⏳ | Progress + ETA (avg s/section, projected finish) |
 | 💾 | Artifact saved to disk |
 | ✅ | Check passed / stage complete |
 | ⚠️ | Warning: retry, empty result, degraded path |

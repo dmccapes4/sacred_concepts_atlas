@@ -1,0 +1,22 @@
+# atlas-router — router role on dual-model hosts (RTX 4090: pairs with
+# atlas-classifier; both stay resident, no weight thrashing).
+# Build:   ollama create atlas-router -f modelfiles/atlas-router.Modelfile
+#
+# qwen3:8b, NOT llama3.2/3.1: the router reads raw section text and picks
+# verbatim anchor verses, and Llama's official language coverage has no
+# Hebrew or Arabic — two thirds of the corpus. Qwen3 covers both.
+#
+# Thin on purpose: doctrine ships per call as system messages
+# (doctrine_core.md + router_role.md, think=off). Sampling below is the
+# Qwen3 thinking default; the orchestrator overrides with non-thinking
+# settings (temp 0.7, top_p 0.8) for router calls.
+# num_ctx 16384: registry names + long sections already reach ~11k chars.
+
+FROM qwen3:8b
+
+PARAMETER temperature 0.6
+PARAMETER top_p 0.95
+PARAMETER top_k 20
+PARAMETER min_p 0.0
+PARAMETER repeat_penalty 1.0
+PARAMETER num_ctx 16384
