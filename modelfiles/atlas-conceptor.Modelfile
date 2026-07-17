@@ -1,0 +1,21 @@
+# atlas-conceptor — base model for the Sacred Concepts Atlas agents
+# Build:   ollama create atlas-conceptor -f modelfiles/atlas-conceptor.Modelfile
+# Upgrade path (RTX 4090): change FROM to qwen3:14b (or qwen3:32b) and raise num_ctx.
+#
+# This Modelfile is deliberately thin: ONE loaded model serves BOTH agent roles
+# (router and classifier) so the 3060 never thrashes between weights. The
+# doctrine lives in versioned prompt files sent as system messages per call:
+#   doctrine_core.md + router_role.md      -> router (think=off)
+#   doctrine_core.md + classifier_role.md  -> classifier (think=on)
+# Their sha256 is recorded in runs.prompts_sha. Sampling defaults below are
+# Qwen3 thinking-mode settings (see STRATEGY doc section 6); the orchestrator
+# overrides per role (router uses non-thinking settings: temp 0.7, top_p 0.8).
+
+FROM qwen3:8b
+
+PARAMETER temperature 0.6
+PARAMETER top_p 0.95
+PARAMETER top_k 20
+PARAMETER min_p 0.0
+PARAMETER repeat_penalty 1.0
+PARAMETER num_ctx 8192

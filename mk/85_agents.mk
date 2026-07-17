@@ -1,0 +1,37 @@
+# =========================
+# Concept-extraction agents (Phase 3) — the point of the project
+# =========================
+# Local agents (Ollama + modelfiles/atlas-conceptor.Modelfile) walk sections,
+# propose weighted concepts (sum = 1.0), and grow the registry under a rising
+# novelty threshold tau(n) = TAU_MAX - (TAU_MAX - TAU_0) * K / (K + n).
+
+# Threshold knobs (recorded in runs.params)
+TAU_0    ?= 0.55
+TAU_MAX  ?= 0.92
+TAU_K    ?= 150
+LIMIT    ?= 0        # 0 = all remaining sections
+ORDER    ?= interleaved   # interleaved (fairness prior) | temporal (Tanakh->Bible->Quran lineage prior)
+CLOUD    ?=            # CLOUD=1 -> OpenAI agents (OPENAI_API_KEY in .env)
+
+.PHONY: agent-modelfile agent-run agent-resume concepts-export concepts-stats
+
+agent-modelfile: ## Build the Ollama model from the Modelfile
+	@ollama create $(AGENT_MODEL) -f modelfiles/atlas-conceptor.Modelfile
+
+agent-run: ## Full concept-extraction pass (new run_id; CLOUD=1 for OpenAI)
+	@$(PY) scripts/agent_conceptor.py --db $(DB) --model $(AGENT_MODEL) \
+		--embed-model $(EMBED_MODEL) \
+		--tau0 $(TAU_0) --tau-max $(TAU_MAX) --tau-k $(TAU_K) \
+		--order $(ORDER) --limit $(LIMIT) $(if $(CLOUD),--cloud)
+
+agent-resume: ## Resume most recent unfinished run (CLOUD=1 switches agents to OpenAI)
+	@$(PY) scripts/agent_conceptor.py --db $(DB) --model $(AGENT_MODEL) \
+		--embed-model $(EMBED_MODEL) --resume $(if $(CLOUD),--cloud)
+concepts-export: ## Export concept registry to JSON (browsable hash view)
+	@$(SQL) --json "SELECT concept_id, name, definition, created_by, status FROM concepts ORDER BY created_at;" > concepts.json
+	@echo "wrote concepts.json"
+
+concepts-stats: ## Registry size, growth, weight sanity
+	@$(SQL) "SELECT COUNT(*) AS concepts FROM concepts WHERE status='active';"
+	@$(SQL) "SELECT run_id, COUNT(DISTINCT section_id) sections_done FROM section_concepts GROUP BY run_id;"
+	@$(SQL) "SELECT section_id, run_id, ROUND(SUM(weight),3) s FROM section_concepts GROUP BY section_id, run_id HAVING ABS(s-1.0) > 0.01 LIMIT 10;"

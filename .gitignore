@@ -1,0 +1,26 @@
+# secrets
+.env
+
+# local environments & caches
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# large / regenerable data
+data/raw/
+db/*.db
+db/*.db-journal
+db/*.db-wal
+db/*.db-shm
+
+# run outputs
+runs/
+queries/
+artifacts/
+concepts.json
+
+# editor / OS
+.DS_Store
+*.swp
+*~
