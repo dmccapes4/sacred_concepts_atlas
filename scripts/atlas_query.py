@@ -455,31 +455,28 @@ def render_report(query, report, evidence, gap_out) -> str:
     return "\n".join(L)
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("query")
-    ap.add_argument("--db", default=str(ROOT / "db/atlas.db"))
-    ap.add_argument("--model", default="atlas-conceptor")
-    ap.add_argument("--embed-model", default="bge-m3")
-    ap.add_argument("--sources", default=None,
-                    help="comma-separated source_ids (default: all)")
-    ap.add_argument("--out-dir", default=str(ROOT / "queries"))
-    ap.add_argument("--seed", type=int, default=7000)
-    ap.add_argument("--cloud", action="store_true",
-                    help="run agents on OpenAI (per-role models, 3x char "
-                         "budgets); retrieval/embeddings stay local")
-    args = ap.parse_args()
-    if args.cloud:
+def run_query(query, *, db=None, model="atlas-conceptor", embed_model="bge-m3",
+              sources=None, out_dir=None, seed=7000, cloud=False,
+              session_context=""):
+    """Full pipeline as a callable (CLI and portal share it).
+
+    session_context: prior-conversation text (the portal's FIFO char bucket).
+    Injected into probe/gap/report prompts, where resolving references like
+    "that verse" is meaningful; the evidence stage never sees it — it verifies
+    quotes against page text only.
+    Returns dict with report_md, report, evidence, gap_report,
+    referenced_pages, out_dir, elapsed_s.
+    """
+    if cloud:
         load_env()
-    mult = CLOUD_BUDGET_MULT if args.cloud else 1
+    mult = CLOUD_BUDGET_MULT if cloud else 1
     s1_budget, rep_budget, ev_budget = (
         STAGE1_BUDGET * mult, REPORT_BUDGET * mult, EVIDENCE_BUDGET * mult)
 
-    con = db_connect(args.db)
+    con = db_connect(db or ROOT / "db/atlas.db")
     all_sources = {sid: (tn, tr, lang, ver) for sid, tn, tr, lang, ver in con.execute(
         "SELECT source_id, text_name, tradition, language, version FROM sources")}
-    sources = ([s.strip() for s in args.sources.split(",")]
-               if args.sources else list(all_sources))
+    sources = list(sources) if sources else list(all_sources)
     for s in sources:
         assert s in all_sources, f"unknown source_id {s}"
     # language slots for the query plans, derived from the queried sources
@@ -489,7 +486,8 @@ def main() -> int:
         if name not in langs:
             langs.append(name)
 
-    out_dir = Path(args.out_dir) / f"{time.strftime('%Y%m%d_%H%M%S')}_{slugify(args.query)[:48]}"
+    out_dir = Path(out_dir or ROOT / "queries") / \
+        f"{time.strftime('%Y%m%d_%H%M%S')}_{slugify(query)[:48]}"
     out_dir.mkdir(parents=True, exist_ok=True)
     trace_path = out_dir / "trace.jsonl"
 
@@ -498,32 +496,43 @@ def main() -> int:
         with open(trace_path, "a") as f:
             f.write(json.dumps(obj, ensure_ascii=False) + "\n")
 
+    ctx_block = ""
+    if session_context.strip():
+        ctx_block = ("SESSION CONTEXT (earlier exchanges in this conversation, "
+                     "oldest first; use it to resolve references like \"that "
+                     "verse\" — the QUERY below is the task):\n"
+                     f"{session_context}\n\n")
+
     t0 = time.time()
-    index = QueryIndex(con, args.embed_model, sources)
+    index = QueryIndex(con, embed_model, sources)
     n_sigs = len(index.signatures)
     src_block = "\n".join(
         f"- {sid}: {tn} ({tr}, language={lang}, {ver}) — "
         f"{con.execute('SELECT COUNT(*) FROM pages WHERE source_id=?', (sid,)).fetchone()[0]} pages"
         for sid, (tn, tr, lang, ver) in all_sources.items() if sid in sources)
     hr("QUERY")
-    say("❓", args.query)
+    say("❓", query)
     say("📚", f"{len(sources)} sources, {len(index.page_ids):,} pages indexed"
         + (f", 🏷️ {n_sigs} sections carry concept signatures"
            if n_sigs else " (no concept signatures yet — ingestion pending)"))
-    if args.cloud:
+    if cloud:
         say("☁️", "cloud agents: " + ", ".join(
             f"{r}={m}" for r, m in CLOUD_ROLE_MODELS.items())
             + f" · char budgets ×{CLOUD_BUDGET_MULT} · retrieval stays local")
+    if ctx_block:
+        say("🧵", f"session context: {len(session_context):,} chars "
+            f"(probe/gap/report see it; evidence does not)")
+        log({"event": "session_context", "chars": len(session_context)})
     for sid in sources:
         tn, tr, lang, ver = all_sources[sid]
         say(TRAD_EMOJI.get(tr, "•"), f"{tn} [{sid}] — {ver}", 1)
 
     # ---- 1. PROBE ----
     hr("STAGE 1 · PROBE — design the retrieval plan")
-    probe = call_role(args.model, "probe",
-                      f"QUERY: {args.query}\n\nSOURCE DICTIONARY:\n{src_block}",
-                      think=False, schema=probe_schema(langs), seed=args.seed,
-                      log=log, cloud=args.cloud)
+    probe = call_role(model, "probe",
+                      f"{ctx_block}QUERY: {query}\n\nSOURCE DICTIONARY:\n{src_block}",
+                      think=False, schema=probe_schema(langs), seed=seed,
+                      log=log, cloud=cloud)
     terms, semantic = flatten_queries(probe.get("queries"))
     show_probe(probe, terms, semantic)
 
@@ -532,7 +541,7 @@ def main() -> int:
     for lang, t in terms:
         say("🔑", f"BM25 [{lang}]: “{t}” → "
             f"{len(index.term_search(t, sources, PER_QUERY_K))} pages")
-    scores = run_retrieval(index, terms, semantic, sources, args.embed_model)
+    scores = run_retrieval(index, terms, semantic, sources, embed_model)
     say("🧭", f"semantic arm: {len(semantic)} queries embedded and searched")
     say("🕸️", f"fusion: {len(scores)} distinct pages across all ranked lists")
     stage1 = truncate_by_score(index, scores, s1_budget)
@@ -543,11 +552,11 @@ def main() -> int:
     # ---- 3. GAP ----
     hr("STAGE 3 · GAP — relevance gate + hole detection")
     ctx1 = "\n\n".join(index.entry(pid) for pid in stage1)
-    gap = call_role(args.model, "gap",
-                    f"QUERY: {args.query}\n\nPROBE RATIONALE: {probe['rationale']}\n\n"
+    gap = call_role(model, "gap",
+                    f"{ctx_block}QUERY: {query}\n\nPROBE RATIONALE: {probe['rationale']}\n\n"
                     f"RETRIEVED PAGES:\n{ctx1}",
-                    think=True, schema=gap_schema(langs), seed=args.seed + 10,
-                    log=log, cloud=args.cloud)
+                    think=True, schema=gap_schema(langs), seed=seed + 10,
+                    log=log, cloud=cloud)
     relevance = {p: float(v) for p, v in gap.get("relevance", {}).items()}
     kept = [p for p in stage1 if relevance.get(p, 1.0) >= RELEVANCE_GATE]
     dropped = [p for p in stage1 if p not in kept]
@@ -557,7 +566,7 @@ def main() -> int:
     # ---- 4. RETRIEVAL 2 + MERGE ----
     hr("STAGE 4 · RETRIEVAL — follow-up pass + merge")
     if add_terms or add_sem:
-        scores2 = run_retrieval(index, add_terms, add_sem, sources, args.embed_model)
+        scores2 = run_retrieval(index, add_terms, add_sem, sources, embed_model)
         for pid in dropped:
             scores2.pop(pid, None)
         merged = {p: scores.get(p, 0) + scores2.get(p, 0)
@@ -578,11 +587,11 @@ def main() -> int:
     # ---- 5. REPORT ----
     hr("STAGE 5 · REPORT — structured synthesis")
     ctx2 = "\n\n".join(index.entry(pid) for pid in final_pages)
-    report = call_role(args.model, "report",
-                       f"QUERY: {args.query}\n\nGAP REPORT: {gap['gap_report']}\n\n"
+    report = call_role(model, "report",
+                       f"{ctx_block}QUERY: {query}\n\nGAP REPORT: {gap['gap_report']}\n\n"
                        f"CURATED PAGES:\n{ctx2}",
-                       think=False, schema=REPORT_SCHEMA, seed=args.seed + 20,
-                       log=log, cloud=args.cloud)
+                       think=False, schema=REPORT_SCHEMA, seed=seed + 20,
+                       log=log, cloud=cloud)
     resolve = make_ref_resolver(index)
     report["referenced_pages"] = [resolve(p) for p in report.get("referenced_pages", [])]
     refd = [p for p in report["referenced_pages"] if p in index.meta] or final_pages
@@ -592,26 +601,52 @@ def main() -> int:
     hr("STAGE 6 · EVIDENCE MAP — verbatim-quote verification layer")
     per_page = max(ev_budget // max(len(refd), 1), 600)
     ev_ctx = "\n\n".join(index.entry(pid, cap=per_page) for pid in refd)
-    evidence = call_role(args.model, "evidence",
-                         f"QUERY: {args.query}\n\nREPORT:\n"
+    evidence = call_role(model, "evidence",
+                         f"QUERY: {query}\n\nREPORT:\n"
                          f"{json.dumps(report, ensure_ascii=False, indent=1)}\n\n"
                          f"REFERENCED PAGES (full text):\n{ev_ctx}",
-                         think=True, schema=EVIDENCE_SCHEMA, seed=args.seed + 30,
-                         log=log, cloud=args.cloud)
+                         think=True, schema=EVIDENCE_SCHEMA, seed=seed + 30,
+                         log=log, cloud=cloud)
     normalize_evidence_refs(evidence, resolve)
     show_evidence(evidence)
 
-    md = render_report(args.query, report, evidence, gap)
+    md = render_report(query, report, evidence, gap)
     (out_dir / "report.md").write_text(md)
     (out_dir / "evidence_map.json").write_text(
         json.dumps(evidence, ensure_ascii=False, indent=1))
-    hr("REPORT")
-    print(f"\n{md}\n")
-    hr()
+    elapsed = time.time() - t0
     say("💾", f"report:       {out_dir}/report.md")
     say("💾", f"evidence map: {out_dir}/evidence_map.json")
     say("💾", f"trace:        {out_dir}/trace.jsonl")
-    say("✅", f"done in {time.time() - t0:.0f}s")
+    say("✅", f"done in {elapsed:.0f}s")
+    con.close()
+    return {"report_md": md, "report": report, "evidence": evidence,
+            "gap_report": gap["gap_report"],
+            "referenced_pages": refd, "out_dir": str(out_dir),
+            "elapsed_s": round(elapsed, 1)}
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("query")
+    ap.add_argument("--db", default=str(ROOT / "db/atlas.db"))
+    ap.add_argument("--model", default="atlas-conceptor")
+    ap.add_argument("--embed-model", default="bge-m3")
+    ap.add_argument("--sources", default=None,
+                    help="comma-separated source_ids (default: all)")
+    ap.add_argument("--out-dir", default=str(ROOT / "queries"))
+    ap.add_argument("--seed", type=int, default=7000)
+    ap.add_argument("--cloud", action="store_true",
+                    help="run agents on OpenAI (per-role models, 3x char "
+                         "budgets); retrieval/embeddings stay local")
+    args = ap.parse_args()
+    result = run_query(
+        args.query, db=args.db, model=args.model, embed_model=args.embed_model,
+        sources=[s.strip() for s in args.sources.split(",")] if args.sources else None,
+        out_dir=args.out_dir, seed=args.seed, cloud=args.cloud)
+    hr("REPORT")
+    print(f"\n{result['report_md']}\n")
+    hr()
     return 0
 
 

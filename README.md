@@ -112,6 +112,30 @@ Pipeline: probe → hybrid retrieval (BM25 + bge-m3, per-source balanced) →
 gap analysis → second retrieval → report → verse-level evidence map. Each run
 writes a folder under `queries/` with `report.md` and the full trace.
 
+## Query portal (sacred.dylanmccapes.systems)
+
+A minimal chat UI over the same query pipeline:
+
+```bash
+make portal                  # http://127.0.0.1:8877 (PORTAL_PORT to change)
+```
+
+Put the reverse proxy for the subdomain in front of it; the server binds
+loopback by default. `PORTAL_CLOUD=0 make portal` switches agents to local
+Ollama (default is OpenAI via `.env` `OPENAI_API_KEY`).
+
+- **Sessions are ephemeral** — no users table, nothing survives a restart.
+  Each session writes `sessions/<id>/session_log.jsonl` (gitignored)
+  capturing queries, reports, evidence/gap summaries, cited pages, timings,
+  and context-bucket evictions. "New session" wipes it; "Export session"
+  downloads the JSONL.
+- **Session context** is a FIFO char bucket (`PORTAL_CONTEXT_CHARS`, default
+  12k) of prior exchanges, injected into the probe/gap/report stages so
+  follow-ups like "of those three…" resolve; the evidence stage never sees it
+  (it verifies quotes against page text only).
+- Per-query artifacts (report.md, evidence_map.json, trace.jsonl) land under
+  the session's `queries/` folder.
+
 ## Inspecting results
 
 ```bash

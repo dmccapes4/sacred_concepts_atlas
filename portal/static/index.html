@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sacred Concepts Atlas</title>
+<style>
+  :root {
+    --bg: #12100e; --panel: #1c1917; --panel2: #262220;
+    --ink: #e8e2d9; --dim: #9a917f; --line: #38322c;
+    --gold: #c9a95c; --gold-dim: #8a744a;
+    --user: #2a3140; --err: #7a3030;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 15px/1.55 Georgia, 'Times New Roman', serif;
+    display: flex; flex-direction: column;
+  }
+  header {
+    display: flex; align-items: baseline; gap: 14px;
+    padding: 14px 22px; border-bottom: 1px solid var(--line);
+    background: var(--panel);
+  }
+  header h1 { font-size: 18px; margin: 0; font-weight: normal; letter-spacing: .06em; color: var(--gold); }
+  header .sub { color: var(--dim); font-size: 12.5px; }
+  header .spacer { flex: 1; }
+  button {
+    background: var(--panel2); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 6px; padding: 6px 14px; font: inherit; font-size: 13px;
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--gold-dim); color: var(--gold); }
+  button:disabled { opacity: .45; cursor: default; }
+  #meta {
+    padding: 6px 22px; font-size: 12px; color: var(--dim);
+    border-bottom: 1px solid var(--line); display: flex; gap: 18px; flex-wrap: wrap;
+  }
+  #chat { flex: 1; overflow-y: auto; padding: 20px 0 30px; }
+  .msg { max-width: 880px; margin: 0 auto 16px; padding: 0 22px; }
+  .msg .bubble {
+    border-radius: 10px; padding: 12px 16px; border: 1px solid var(--line);
+    overflow-wrap: break-word;
+  }
+  .msg.user .bubble { background: var(--user); border-color: #3c4a63; }
+  .msg.user .who { color: #93a8c9; }
+  .msg.atlas .bubble { background: var(--panel); }
+  .msg.error .bubble { background: var(--err); }
+  .msg .who {
+    font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--gold-dim); margin-bottom: 4px;
+  }
+  .msg .time { color: var(--dim); font-size: 11.5px; margin-top: 6px; }
+  .report h1 { font-size: 19px; color: var(--gold); }
+  .report h2 { font-size: 16px; color: var(--gold); border-bottom: 1px solid var(--line); padding-bottom: 3px; margin-top: 20px; }
+  .report code {
+    font: 12.5px/1.4 ui-monospace, Menlo, monospace;
+    background: var(--panel2); padding: 1px 5px; border-radius: 4px; color: #b8c4a9;
+  }
+  .report blockquote { border-left: 3px solid var(--gold-dim); margin: 8px 0; padding: 2px 12px; color: var(--dim); }
+  .report hr { border: none; border-top: 1px solid var(--line); margin: 18px 0; }
+  .report ul { padding-left: 22px; }
+  .report em { color: var(--dim); }
+  .thinking { color: var(--dim); font-style: italic; }
+  .thinking .dots::after { content: ''; animation: dots 1.6s steps(4) infinite; }
+  @keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
+  footer {
+    border-top: 1px solid var(--line); background: var(--panel); padding: 14px 22px;
+  }
+  #inputRow { max-width: 880px; margin: 0 auto; display: flex; gap: 10px; }
+  #q {
+    flex: 1; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+    color: var(--ink); font: inherit; padding: 10px 14px; resize: none; min-height: 44px; max-height: 160px;
+  }
+  #q:focus { outline: none; border-color: var(--gold-dim); }
+  #send { padding: 6px 22px; }
+  #ctxbar { max-width: 880px; margin: 6px auto 0; font-size: 11.5px; color: var(--dim); }
+  #ctxfill { height: 3px; background: var(--gold-dim); border-radius: 2px; width: 0%; transition: width .4s; }
+  #ctxtrack { height: 3px; background: var(--panel2); border-radius: 2px; margin-top: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SACRED CONCEPTS ATLAS</h1>
+  <span class="sub">Tanakh · Bible · Quran — cross-tradition query portal</span>
+  <span class="spacer"></span>
+  <button id="exportBtn" title="Download session_log.jsonl">Export session</button>
+  <button id="clearBtn" title="Wipe context and start fresh">New session</button>
+</header>
+<div id="meta">connecting…</div>
+<div id="chat"></div>
+<footer>
+  <div id="inputRow">
+    <textarea id="q" rows="1" placeholder="Ask across the three traditions… (Enter to send, Shift+Enter for newline)"></textarea>
+    <button id="send">Ask</button>
+  </div>
+  <div id="ctxbar">
+    <span id="ctxlabel">session context: 0 chars</span>
+    <div id="ctxtrack"><div id="ctxfill"></div></div>
+  </div>
+</footer>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+let SID = null, BUSY = false, BUDGET = 12000;
+
+// --- minimal markdown renderer (headers, bold, italics, code, quotes, lists, hr)
+function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function inline(s) {
+  return s
+    .replace(/`([^`]+)`/g, (_, c) => "<code>" + c + "</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/_([^_]+)_/g, "<em>$1</em>");
+}
+function renderMd(md) {
+  const out = [];
+  let inList = false;
+  for (const raw of md.split("\n")) {
+    const line = esc(raw);
+    const li = line.match(/^\s*[-*]\s+(.*)/);
+    if (li) {
+      if (!inList) { out.push("<ul>"); inList = true; }
+      out.push("<li>" + inline(li[1]) + "</li>");
+      continue;
+    }
+    if (inList) { out.push("</ul>"); inList = false; }
+    if (/^---+\s*$/.test(line)) { out.push("<hr>"); continue; }
+    const h = line.match(/^(#{1,4})\s+(.*)/);
+    if (h) { const n = Math.min(h[1].length, 4); out.push(`<h${n}>` + inline(h[2]) + `</h${n}>`); continue; }
+    const bq = line.match(/^&gt;\s?(.*)/);
+    if (bq) { out.push("<blockquote>" + inline(bq[1]) + "</blockquote>"); continue; }
+    if (line.trim() === "") { out.push(""); continue; }
+    out.push("<p>" + inline(line) + "</p>");
+  }
+  if (inList) out.push("</ul>");
+  return out.join("\n");
+}
+
+function addMsg(cls, who, html) {
+  const div = document.createElement("div");
+  div.className = "msg " + cls;
+  div.innerHTML = `<div class="who">${who}</div><div class="bubble">${html}</div>`;
+  $("chat").appendChild(div);
+  $("chat").scrollTop = $("chat").scrollHeight;
+  return div;
+}
+
+function setCtx(chars, budget) {
+  BUDGET = budget || BUDGET;
+  $("ctxlabel").textContent = `session context: ${chars.toLocaleString()} / ${BUDGET.toLocaleString()} chars (FIFO)`;
+  $("ctxfill").style.width = Math.min(100, 100 * chars / BUDGET) + "%";
+}
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) {
+    let detail = r.statusText;
+    try { detail = (await r.json()).detail || detail; } catch (e) {}
+    throw new Error(detail);
+  }
+  return r.json();
+}
+
+async function newSession(s) {
+  if (!s) s = await api("/api/session", { method: "POST" });
+  SID = s.session_id;
+  const models = Object.entries(s.models).map(([k, v]) => `${k}=${v}`).join(" · ");
+  const sigs = s.signed_sections ? ` · ${s.signed_sections.toLocaleString()} sections carry concept signatures` : "";
+  $("meta").textContent =
+    `session ${s.session_id} · ${s.pages.toLocaleString()} pages across ` +
+    `${s.sources.length} sources${sigs} · agents: ${models}`;
+  $("chat").innerHTML = "";
+  setCtx(0, s.context_char_budget);
+  addMsg("atlas", "atlas",
+    "<p>New session. Ask a question across the Tanakh, Bible, and Quran — " +
+    "each answer runs the full probe → retrieval → gap → report → evidence pipeline " +
+    "and cites verse-level pages. Prior exchanges in this session are passed to the " +
+    "agents as context.</p>");
+}
+
+async function ask() {
+  const q = $("q").value.trim();
+  if (!q || BUSY || !SID) return;
+  BUSY = true; $("send").disabled = true; $("q").value = "";
+  addMsg("user", "you", "<p>" + esc(q) + "</p>");
+  const th = addMsg("atlas thinking", "atlas",
+    '<span class="thinking">running the pipeline (probe → retrieval → gap → report → evidence), typically 1–3 minutes<span class="dots"></span></span>');
+  try {
+    const r = await api("/api/query", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: SID, query: q }),
+    });
+    th.remove();
+    const m = addMsg("atlas", "atlas", '<div class="report">' + renderMd(r.report_md) + "</div>");
+    m.querySelector(".bubble").insertAdjacentHTML("beforeend",
+      `<div class="time">answered in ${Math.round(r.elapsed_s)}s · exchange ${r.exchanges}</div>`);
+    setCtx(r.context_chars, r.context_char_budget);
+  } catch (e) {
+    th.remove();
+    addMsg("error", "error", "<p>" + esc(e.message) + "</p>");
+  } finally {
+    BUSY = false; $("send").disabled = false; $("q").focus();
+  }
+}
+
+$("send").onclick = ask;
+$("q").addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(); }
+});
+$("clearBtn").onclick = async () => {
+  if (BUSY) return;
+  try {
+    // clear endpoint wipes the old session and returns a fresh one
+    const s = SID ? await api(`/api/session/${SID}/clear`, { method: "POST" }) : null;
+    await newSession(s);
+  } catch (e) {
+    SID = null;
+    await newSession();
+  }
+};
+$("exportBtn").onclick = () => {
+  if (SID) window.location.href = `/api/session/${SID}/export`;
+};
+newSession().catch(e => { $("meta").textContent = "failed to start session: " + e.message; });
+</script>
+</body>
+</html>

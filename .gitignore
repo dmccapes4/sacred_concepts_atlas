@@ -19,6 +19,7 @@ runs/
 queries/
 artifacts/
 concepts.json
+sessions/
 
 # editor / OS
 .DS_Store
