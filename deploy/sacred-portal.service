@@ -1,0 +1,23 @@
+# systemd USER unit — Sacred Concepts Atlas query portal on loopback :8877.
+# nginx terminates TLS and proxies /api; this unit never binds publicly.
+#
+#   cp deploy/sacred-portal.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now sacred-portal
+#   sudo loginctl enable-linger $USER   # once, so it survives logout
+#
+[Unit]
+Description=Sacred Concepts Atlas query portal (FastAPI, loopback :8877)
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/dev/sacred_concepts_atlas
+ExecStart=%h/dev/sacred_concepts_atlas/venv/bin/python -m uvicorn portal.server:app --host 127.0.0.1 --port 8877
+Environment=PYTHONUNBUFFERED=1
+Environment=PORTAL_CLOUD=1
+# OPENAI_API_KEY comes from the project's .env via atlas_lib.load_env()
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
