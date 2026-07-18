@@ -633,6 +633,32 @@ embedding (marked `[gated->nearest]` in the rationale), and the rejection —
 with name, definition, confidence, threshold, and nearest neighbor — is logged
 to `runs/<run_id>/decisions.jsonl` for later audit/re-admission.
 
+**Staged for gate v0.2 — NOT applied while the dual GPT-4.1/Qwen3 ingestion
+runs are live** (mid-run prompt/doctrine changes would change `prompts_sha`
+and contaminate the bias comparison). Verified on the GPT-4.1 run at ~653
+sections: 151 rejections, all reweighted to a nearest neighbor, weight always
+landed. The v0.1 absorb rule (cosine top-1, unconditional) has three known
+refinements, in priority order:
+
+1. **Agent-chosen absorb target**: on gate failure, a cheap follow-up asks
+   the classifier to pick the receiving concept from the candidate set — or
+   "none" (renormalize rest of signature) when the embedding neighbor is
+   thematically adjacent but theologically wrong.
+2. **Split/refine outcome**: a rejected proposal is often a *bundle* — three
+   related ideas compressed into one name that correctly failed novelty.
+   Third gate outcome beyond create/absorb: decompose into 2–3 tighter
+   existing-or-new assignments whose weights sum to the original.
+3. **Similarity floor**: below a minimum cosine, drop the weight rather than
+   force a bad absorb.
+
+Also staged for the same window: doctrine_core.md gains the mode-of-
+endorsement axis (commands / permits-regulates / narrates / divine-agency /
+condemns) already adopted in the query report role — concept definitions on
+legal/sensitive material should encode *how* a text relates to a practice,
+not only the practice. Design split-vs-absorb against the dual-run diffs:
+sections where one model minted and the other gated-and-absorbed are the
+richest test cases.
+
 ### Orchestrator guarantees (code, not model discipline)
 
 - Exact-name/alias reuse: a "new" proposal whose name already exists is
@@ -760,6 +786,41 @@ so format safety rides on the existing parse + retry guards — in practice
 gpt-4.1-class models are more format-reliable than the local 8B, not less.
 Query harnesses/evals are deferred until concept signatures exist (they
 change what queries can do and would invalidate any baseline).
+
+### Passage lookups + calibration (external review response, 2026-07-17)
+
+An external review of a portal session on comparative violence/gender
+questions (`reviews/REVIEW_GROK_QUERY_SESSION_2026-07-17.md`) found the gap
+agent *naming* missing passages precisely (At-Tawba 9:5, An-Nisaa 4:34) while
+the pipeline gave it no way to fetch a passage it already knew — only more
+search queries, which must survive BM25/embedding ranking. Famous passages
+are exactly where the model's parametric knowledge (book + verse) beats
+search. Four changes:
+
+1. **Lookup arm** (probe + gap, up to 12 each): explicit refs like
+   "At-Tawba 9:5" or "Deuteronomy 21:10-14" resolve deterministically to
+   pages (`PassageLookup`: book-name normalization, Arabic definite-article
+   assimilation An-/Al-/At-, transliteration vowel collapse, "Quran N:M"
+   numeric form, verse-range overlap) and enter fusion with a bonus score
+   that guarantees survival through truncation. A gap lookup may re-seat a
+   gate-dropped page: a deliberate by-reference request outranks a bad
+   first-pass relevance score.
+2. **Corpus outline** (~3.4k chars, every book + section count) shown to the
+   probe so lookups and plans are grounded in what exists.
+3. **Per-source floor in truncation** (2 pages) — best-first packing can no
+   longer squeeze a tradition out of the context window.
+4. **Report calibration rules**: comparative/superlative conclusions must be
+   marked provisional *in the executive summary* when the gap report names
+   missing material ("in the retrieved evidence, X…"), and claims about what
+   a text "condones" must classify each passage as commands / permits-
+   regulates / narrates / divine-agency / condemns — regulation is neither
+   endorsement nor absence.
+
+Retest of the reviewed query: probe looked up Deuteronomy 7 / Joshua 6 /
+1 Samuel 15 / At-Tawba 9 / Al-Anfal 8 directly, gap fetched At-Tawba 9:5 and
+An-Nisaa 4:89 by name, and the report quoted the Sword Verse verbatim with
+its conditional framing and led with "In the retrieved evidence… this
+comparison is provisional". The specific misses the review cited are closed.
 
 ### Cloud-hosted ingestion (`make agent-resume CLOUD=1`, added 2026-07-17)
 

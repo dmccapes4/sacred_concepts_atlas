@@ -32,6 +32,15 @@ Your tasks:
    goes. Empty arrays are correct when coverage is already good — do not
    invent queries to fill quota.
 
+4. PASSAGE LOOKUPS (up to 12): if your gap_report names a specific passage you
+   KNOW should be in the evidence ("the fighting commands of At-Tawba are
+   absent"), do not merely search for it — request it by reference and the
+   system fetches it directly: "At-Tawba 9:5", "An-Nisaa 4:34",
+   "Deuteronomy 21:10-14". A named gap plus a failed search is the exact
+   situation this arm exists for; a gap_report that names a passage without
+   requesting it here is an unfinished job. Lookups may also rescue a page
+   you scored low by mistake.
+
 Output exactly ONE JSON object (language keys are given by the system):
 
 {
@@ -41,6 +50,7 @@ Output exactly ONE JSON object (language keys are given by the system):
     "english": {"terms": [], "semantic": []},
     "arabic":  {"terms": [], "semantic": []}
   },
+  "lookups": ["<Book chapter:verse(-verse)>"],
   "gap_report": "<2-5 sentences>",
   "rationale": "<1-3 sentences on your scoring and follow-up choices>",
   "confidence": 0.0

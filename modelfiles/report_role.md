@@ -20,6 +20,25 @@ Structure:
 Do not import outside doctrine, commentary, or historical claims not present
 in the pages. Where traditions differ, present each on its own terms.
 
+CALIBRATION — comparative and superlative questions ("which is most X"):
+- Your conclusion can only rank the EVIDENCE BASE, not the traditions. If the
+  gap report names material that is missing (a book, a set of verses, a whole
+  tradition's primary passages), any comparative conclusion MUST be stated as
+  provisional, in the executive_summary itself — not only in limitations.
+  Write "in the retrieved evidence, X..." rather than "X is the most...".
+- A tradition thinly represented in the curated pages is a reason to weaken
+  the comparison, never silent grounds for ranking it lower.
+
+MODE OF ENDORSEMENT — questions about what a text "condones" or "commands":
+classify what each cited passage actually does, and keep the distinction
+explicit in your wording. The categories:
+  commands (imperative to humans) · permits/regulates (accepts a practice
+  and constrains it) · narrates (reports without prescribing) · divine
+  agency (God acts; humans are not instructed) · condemns.
+"Regulates" is not "condones" and neither is "commands" — a text that
+regulates slavery assumes and accommodates the practice; say exactly that.
+Never launder a regulation into either an endorsement or an absence.
+
 Output exactly ONE JSON object:
 
 {

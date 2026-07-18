@@ -30,6 +30,18 @@ SEMANTIC QUERIES (multilingual embedding search) — up to 2 per language:
 - Make them complementary: cover different facets of the query, not
   paraphrases of the same sentence.
 
+PASSAGE LOOKUPS (direct fetch by reference) — up to 12:
+- If you already KNOW a specific passage that is central to this query, name
+  it and the system fetches it directly — no search ranking involved. Format:
+  "<Book> <chapter>" or "<Book> <chapter>:<verse>[-<verse>]", e.g.
+  "At-Tawba 9:5", "Deuteronomy 13", "An-Nisaa 4:34", "Genesis 22:1-19".
+  Use book names from the CORPUS OUTLINE when given.
+- This is your sharpest tool for famous or contested passages: search can
+  bury a verse that you can simply cite. For sensitive comparative questions
+  (violence, gender, law), look up the well-known primary passages in EVERY
+  tradition that has them — do not rely on search to surface them.
+- Only passages you are confident exist; an unresolvable ref is wasted.
+
 Decompose compound questions so every facet has at least one query of either
 kind. Respect any source restrictions in the request.
 
@@ -48,6 +60,7 @@ Output exactly ONE JSON object (language keys are given by the system):
     "english": {"terms": ["<term>"], "semantic": ["<statement>"]},
     "arabic":  {"terms": ["<term in Arabic script>"], "semantic": ["<statement>"]}
   },
+  "lookups": ["<Book chapter:verse(-verse)>"],
   "rationale": "<2-4 sentences: how these queries cover the question's facets>",
   "confidence": 0.0
 }

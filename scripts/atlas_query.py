@@ -40,6 +40,10 @@ NOTHINK_OPTS = {"temperature": 0.7, "top_p": 0.8, "top_k": 20, "min_p": 0.0}
 MAX_TERMS_PER_LANG, MAX_SEM_PER_LANG = 3, 2   # per corpus language, probe and gap
 PER_QUERY_K = 8                          # pages per individual query before fusion
 RRF_K = 60                               # reciprocal-rank-fusion constant
+MAX_LOOKUPS = 12                         # explicit passage lookups per stage
+LOOKUP_PAGE_CAP = 6                      # pages one lookup may pull in
+LOOKUP_BONUS = 1.0                       # >> any RRF score: looked-up pages survive truncation
+TRUNCATE_SOURCE_FLOOR = 2                # best pages per source seated before global fill
 STAGE1_BUDGET = 8000                     # chars of page context shown to gap
 REPORT_BUDGET = 11000                    # chars of curated context for report
 EVIDENCE_BUDGET = 10000                  # chars of referenced-page text for evidence
@@ -77,10 +81,11 @@ def probe_schema(langs):
         "type": "object",
         "properties": {
             "queries": queries_schema(langs),
+            "lookups": {"type": "array", "items": {"type": "string"}},
             "rationale": {"type": "string"},
             "confidence": {"type": "number"},
         },
-        "required": ["queries", "rationale", "confidence"],
+        "required": ["queries", "lookups", "rationale", "confidence"],
     }
 
 
@@ -90,11 +95,13 @@ def gap_schema(langs):
         "properties": {
             "relevance": {"type": "object", "additionalProperties": {"type": "number"}},
             "queries": queries_schema(langs),
+            "lookups": {"type": "array", "items": {"type": "string"}},
             "gap_report": {"type": "string"},
             "rationale": {"type": "string"},
             "confidence": {"type": "number"},
         },
-        "required": ["relevance", "queries", "gap_report", "rationale", "confidence"],
+        "required": ["relevance", "queries", "lookups", "gap_report",
+                     "rationale", "confidence"],
     }
 
 
@@ -240,6 +247,124 @@ class QueryIndex:
         return f"{head}\n{text}"
 
 
+class PassageLookup:
+    """Deterministic ref -> pages resolver for the agents' LOOKUPS arm.
+
+    Retrieval gap fix (Grok review 2026-07-17): famous passages (Quran 9:5,
+    Deuteronomy 21:10-14) are ones the model already knows by reference —
+    parametric knowledge beats search there, so let the agent name the
+    passage and fetch it directly instead of hoping a query ranks it."""
+
+    _ARTICLES = ("ash", "ath", "ad", "al", "at", "an", "as", "az", "ar")
+    _REF_RE = re.compile(r"^(.*?)\s+(\d+)(?:\s*[:.]\s*(\d+)(?:\s*[-–—]\s*(\d+))?)?\s*$")
+    # common alternate book names -> the corpus's naming (post-normalization)
+    _ALIASES = {"songofsolomon": "songofsongs", "canticles": "songofsongs",
+                "qoheleth": "ecclesiastes"}
+
+    def __init__(self, con, sources):
+        ph = ",".join("?" * len(sources))
+        # book -> chapter -> [(v1, v2, page_id)]
+        self.books: dict[str, dict[int, list]] = {}
+        # sec.book carries the surah number ("009 At-Tawba") that page refs
+        # drop — needed for numeric lookups like "Quran 9:29".
+        for pid, book, ref in con.execute(
+                f"SELECT p.page_id, sec.book, p.ref FROM pages p "
+                f"JOIN sections sec ON sec.section_id = p.section_id "
+                f"WHERE p.source_id IN ({ph})", sources):
+            m = self._REF_RE.match(ref)
+            if not m or m.group(3) is None:
+                continue
+            ch = int(m.group(2))
+            v1, v2 = int(m.group(3)), int(m.group(4) or m.group(3))
+            for key in self._book_keys(book) | self._book_keys(m.group(1)):
+                self.books.setdefault(key, {}).setdefault(ch, []).append((v1, v2, pid))
+        for chapters in self.books.values():
+            for pages in chapters.values():
+                pages.sort()
+
+    @staticmethod
+    def _collapse(s: str) -> str:
+        """Neutralize transliteration vowel-doubling: talaaq/nisaa -> talaq/nisa."""
+        return re.sub(r"(.)\1+", r"\1", s)
+
+    @classmethod
+    def _book_keys(cls, book: str) -> set[str]:
+        keys = set()
+        base, surah = book, None
+        m = re.match(r"^(\d{1,3})\s+(.*)$", book)   # quran: "004 An-Nisaa"
+        if m:
+            surah, base = int(m.group(1)), m.group(2)
+        alpha = re.sub(r"[^a-z]", "", base.lower())
+        num = "".join(re.findall(r"\d+", base))
+        keys.add(alpha + num)
+        # Arabic definite-article assimilation: An-Nisaa / Al-Nisa both -> nisaa stem
+        for art in cls._ARTICLES:
+            if alpha.startswith(art) and len(alpha) > len(art) + 2:
+                keys.add(alpha[len(art):])
+        if surah is not None:
+            keys.add(f"surah{surah}")
+        keys |= {cls._collapse(k) for k in keys}
+        return keys
+
+    def resolve(self, text: str) -> list[str]:
+        m = self._REF_RE.match(text.strip())
+        if not m:
+            return []
+        bookpart, ch = m.group(1), int(m.group(2))
+        v1 = int(m.group(3)) if m.group(3) else None
+        v2 = int(m.group(4)) if m.group(4) else v1
+        alpha = re.sub(r"[^a-z]", "", bookpart.lower())
+        num = "".join(re.findall(r"\d+", bookpart))
+        cand = [alpha + num]
+        if alpha in ("quran", "surah", "sura", "q", "koran"):
+            cand = [f"surah{ch}"]
+        else:
+            for art in self._ARTICLES:
+                if alpha.startswith(art) and len(alpha) > len(art) + 2:
+                    cand.append(alpha[len(art):])
+            cand += [self._collapse(c) for c in cand if self._collapse(c) not in cand]
+            cand += [self._ALIASES[c] for c in cand if c in self._ALIASES]
+        # spelling drift fallback ("Al-Nisa" vs "An-Nisaa"): unique prefix match
+        for c in list(cand):
+            if c not in self.books and len(c) >= 4:
+                near = [k for k in self.books
+                        if len(k) >= 4 and (k.startswith(c) or c.startswith(k))]
+                if len(set(near)) == 1:
+                    cand.append(near[0])
+        pids: list[str] = []
+        for key in cand:
+            chapters = self.books.get(key)
+            if not chapters:
+                continue
+            for p1, p2, pid in chapters.get(ch, []):
+                if v1 is None or (p1 <= v2 and p2 >= v1):
+                    if pid not in pids:
+                        pids.append(pid)
+            if pids:
+                break
+        return pids[:LOOKUP_PAGE_CAP]
+
+
+def apply_lookups(lookup, refs, scores, log, event):
+    """Resolve explicit passage refs and force-boost their pages into scores."""
+    hits = []
+    for ref in refs[:MAX_LOOKUPS]:
+        ref = (ref or "").strip()
+        if not ref:
+            continue
+        pids = lookup.resolve(ref)
+        hits.append({"ref": ref, "pages": pids})
+        for pid in pids:
+            scores[pid] = scores.get(pid, 0.0) + LOOKUP_BONUS
+        if pids:
+            say("📌", f"lookup “{ref}” → {len(pids)} page(s)", 1)
+        else:
+            say("🚫", f"lookup “{ref}” did not resolve to any passage", 1)
+    if hits:
+        log({"event": event, "lookups": hits})
+    return hits
+
+
 def rrf_fuse(ranked_lists: list[list[str]]) -> dict[str, float]:
     scores: dict[str, float] = {}
     for lst in ranked_lists:
@@ -273,9 +398,20 @@ def log_retrieval(log, event, index, scores, kept):
 
 
 def truncate_by_score(index, scores: dict[str, float], budget: int) -> list[str]:
-    """Best-first pages whose combined context fits the char budget."""
+    """Best-first pages within the char budget, with a per-source floor.
+
+    Pure best-first can squeeze a whole tradition out of context (Grok review
+    2026-07-17); seat each source's top pages first, then fill globally."""
+    order = sorted(scores, key=lambda p: -scores[p])
+    seats: list[str] = []
+    per_source: dict[str, int] = {}
+    for pid in order:
+        sid = index.meta[pid]["source_id"]
+        if per_source.get(sid, 0) < TRUNCATE_SOURCE_FLOOR:
+            seats.append(pid)
+            per_source[sid] = per_source.get(sid, 0) + 1
     kept, used = [], 0
-    for pid in sorted(scores, key=lambda p: -scores[p]):
+    for pid in seats + [p for p in order if p not in seats]:
         n = len(index.entry(pid))
         if used + n > budget and kept:
             continue
@@ -283,7 +419,21 @@ def truncate_by_score(index, scores: dict[str, float], budget: int) -> list[str]
         used += n
         if used >= budget:
             break
-    return kept
+    return [p for p in order if p in kept]
+
+
+def corpus_outline(con, sources, all_sources) -> str:
+    """Compact per-source book list (~3.4k chars) so agents ground lookups
+    and term plans in what actually exists."""
+    lines = []
+    for sid in sources:
+        tn, tr, _lang, _ver = all_sources[sid]
+        books = con.execute(
+            "SELECT book, COUNT(*) FROM sections WHERE source_id=? "
+            "GROUP BY book ORDER BY MIN(seq)", (sid,)).fetchall()
+        body = " · ".join(f"{b}({n})" for b, n in books)
+        lines.append(f"{tn} ({tr}): {body}")
+    return "\n".join(lines)
 
 
 # ---------- console ----------
@@ -337,6 +487,8 @@ def show_probe(probe, terms, semantic):
         say("🔑", f"term query [{lang}]: “{t}”", 1)
     for lang, s in semantic:
         say("🧭", f"semantic query [{lang}]: “{clip(s, 90)}”", 1)
+    for ref in probe.get("lookups") or []:
+        say("📌", f"passage lookup: “{ref}”", 1)
 
 
 def show_pages(index, pids, scores=None, title="pages in context"):
@@ -367,7 +519,9 @@ def show_gap(gap, relevance, stage1, kept, add_terms, add_sem):
         say("➕", f"🔑 follow-up term [{lang}]: “{t}”", 1)
     for lang, s in add_sem:
         say("➕", f"🧭 follow-up semantic [{lang}]: “{clip(s, 90)}”", 1)
-    if not add_terms and not add_sem:
+    for ref in gap.get("lookups") or []:
+        say("➕", f"📌 follow-up lookup: “{ref}”", 1)
+    if not add_terms and not add_sem and not (gap.get("lookups") or []):
         say("✅", "no follow-up queries needed — coverage judged sufficient", 1)
 
 
@@ -527,10 +681,14 @@ def run_query(query, *, db=None, model="atlas-conceptor", embed_model="bge-m3",
         tn, tr, lang, ver = all_sources[sid]
         say(TRAD_EMOJI.get(tr, "•"), f"{tn} [{sid}] — {ver}", 1)
 
+    lookup = PassageLookup(con, sources)
+    outline = corpus_outline(con, sources, all_sources)
+
     # ---- 1. PROBE ----
     hr("STAGE 1 · PROBE — design the retrieval plan")
     probe = call_role(model, "probe",
-                      f"{ctx_block}QUERY: {query}\n\nSOURCE DICTIONARY:\n{src_block}",
+                      f"{ctx_block}QUERY: {query}\n\nSOURCE DICTIONARY:\n{src_block}\n\n"
+                      f"CORPUS OUTLINE (book: chapter/surah-part count):\n{outline}",
                       think=False, schema=probe_schema(langs), seed=seed,
                       log=log, cloud=cloud)
     terms, semantic = flatten_queries(probe.get("queries"))
@@ -543,6 +701,7 @@ def run_query(query, *, db=None, model="atlas-conceptor", embed_model="bge-m3",
             f"{len(index.term_search(t, sources, PER_QUERY_K))} pages")
     scores = run_retrieval(index, terms, semantic, sources, embed_model)
     say("🧭", f"semantic arm: {len(semantic)} queries embedded and searched")
+    apply_lookups(lookup, probe.get("lookups") or [], scores, log, "probe_lookups")
     say("🕸️", f"fusion: {len(scores)} distinct pages across all ranked lists")
     stage1 = truncate_by_score(index, scores, s1_budget)
     say("✂️", f"truncated to {s1_budget:,}-char budget by fusion score")
@@ -565,12 +724,18 @@ def run_query(query, *, db=None, model="atlas-conceptor", embed_model="bge-m3",
 
     # ---- 4. RETRIEVAL 2 + MERGE ----
     hr("STAGE 4 · RETRIEVAL — follow-up pass + merge")
-    if add_terms or add_sem:
-        scores2 = run_retrieval(index, add_terms, add_sem, sources, embed_model)
+    gap_lookups = gap.get("lookups") or []
+    if add_terms or add_sem or gap_lookups:
+        scores2 = (run_retrieval(index, add_terms, add_sem, sources, embed_model)
+                   if (add_terms or add_sem) else {})
+        # explicit lookups may re-seat a gate-dropped page: a deliberate
+        # by-reference request outranks a low first-pass relevance score
+        apply_lookups(lookup, gap_lookups, scores2, log, "gap_lookups")
         for pid in dropped:
-            scores2.pop(pid, None)
+            if scores2.get(pid, 0) < LOOKUP_BONUS:
+                scores2.pop(pid, None)
         merged = {p: scores.get(p, 0) + scores2.get(p, 0)
-                  for p in set(list(scores2) + kept) if p not in dropped}
+                  for p in set(list(scores2) + kept)}
         say("🕸️", f"follow-up fusion: {len(scores2)} pages "
             f"({len(dropped)} gate-dropped pages barred from re-entry)")
     else:
