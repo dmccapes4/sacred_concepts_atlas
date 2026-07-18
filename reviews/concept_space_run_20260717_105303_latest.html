@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Concept space — run_20260717_105303</title>
+<style>
+  :root { --bg:#12100e; --panel:#1c1917; --ink:#e8e2d9; --dim:#9a917f;
+           --line:#38322c; --gold:#c9a95c; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font: 15px/1.55 Georgia, 'Times New Roman', serif; padding: 28px 22px 60px; }
+  main { max-width: 920px; margin: 0 auto; }
+  h1 { font-size: 26px; font-weight: normal; color: var(--gold); margin: 0 0 6px; }
+  h2 { font-size: 18px; color: var(--gold); margin: 28px 0 10px;
+        border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  h3 { font-size: 15px; margin: 0 0 10px; }
+  .dim { color: var(--dim); font-size: 13px; }
+  .stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin: 18px 0; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+           padding: 12px 14px; }
+  .stat .v { font-size: 22px; color: var(--gold); }
+  .stat .l { font-size: 12px; color: var(--dim); margin-top: 2px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+           padding: 14px 16px; margin: 10px 0; }
+  .card.sm { padding: 10px 12px; }
+  .callout { border-left: 3px solid var(--gold); background: var(--panel);
+              padding: 12px 16px; margin: 16px 0; }
+  .bar { display:flex; height: 14px; background:#262220; border-radius: 4px; overflow:hidden; }
+  .seg { height:100%; }
+  table { width:100%; border-collapse: collapse; font-size: 13.5px; margin: 8px 0 16px; }
+  th, td { text-align:left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--dim); font-weight: normal; font-size: 12px; }
+  td:nth-child(n+2) { text-align: right; font-variant-numeric: tabular-nums; }
+  .pill { display:inline-block; font-size:11px; color:var(--dim); border:1px solid var(--line);
+           border-radius:999px; padding:1px 8px; margin-left:8px; }
+  .sample { margin-bottom: 10px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:720px) { .stats, .grid2 { grid-template-columns:1fr 1fr; } }
+  @media (max-width:480px) { .stats, .grid2 { grid-template-columns:1fr; } }
+</style>
+</head>
+<body><main>
+  <h1>Concept space — GPT-4.1 run</h1>
+  <p class="dim">run_20260717_105303 · cloud:router=gpt-4.1-mini,classifier=gpt-4.1 · order=interleaved
+     · snapshot at ~Proverbs 30 (bible_en_web)
+     · exported 2026-07-18T02:13:39Z</p>
+
+  <div class="stats">
+    <div class="stat"><div class="v">65.8%</div><div class="l">Corpus signed</div></div>
+    <div class="stat"><div class="v">665</div><div class="l">Active concepts</div></div>
+    <div class="stat"><div class="v">0.852</div><div class="l">Novelty gate τ(n)</div></div>
+    <div class="stat"><div class="v">4.3</div><div class="l">Avg concepts / signature</div></div>
+  </div>
+
+  <div class="callout">
+    <strong>1,546 / 2,348 sections signed (65.8%).</strong>
+    Quran 100.0% · Tanakh 70.8% ·
+    Bible 55.3%.
+    Cross-tradition spine: 101 concepts in all 3 ·
+    gate rejects 615 / creates 665 (48% reject rate among novelty proposals).
+  </div>
+
+  <h2>Tradition coverage</h2>
+  <table><thead><tr><th>Tradition</th><th>Signed</th><th>Total</th><th>Share</th></tr></thead><tbody><tr><td>Judaism</td><td>658</td><td>929</td><td>70.8%</td></tr><tr><td>Christianity</td><td>658</td><td>1189</td><td>55.3%</td></tr><tr><td>Islam</td><td>230</td><td>230</td><td>100.0%</td></tr></tbody></table>
+
+  <h2>Signature size</h2>
+  <div class="card">
+    <div class="bar"><div class="seg" style="width:3.5%;background:#c9a95c" title="2: 54"></div><div class="seg" style="width:17.1%;background:#6b8f71" title="3: 264"></div><div class="seg" style="width:36.3%;background:#7a8fa8" title="4: 561"></div><div class="seg" style="width:32.6%;background:#8a6b5c" title="5: 504"></div><div class="seg" style="width:10.2%;background:#9a917f" title="6: 158"></div><div class="seg" style="width:0.3%;background:#c9a95c" title="7: 5"></div></div>
+    <p class="dim" style="margin:8px 0 0">Counts by concepts-per-section:
+    2: 54 · 3: 264 · 4: 561 · 5: 504 · 6: 158 · 7: 5
+    · avg max weight 0.398</p>
+  </div>
+
+  <h2>Concept reuse</h2>
+  <div class="card">
+    <div class="bar"><div class="seg" style="width:17.0%;background:#c9a95c" title="once: 113"></div><div class="seg" style="width:38.2%;background:#6b8f71" title="2-5: 254"></div><div class="seg" style="width:33.1%;background:#7a8fa8" title="6-20: 220"></div><div class="seg" style="width:11.7%;background:#8a6b5c" title="21+: 78"></div></div>
+    <p class="dim" style="margin:8px 0 0">
+    once: 113 · 2-5: 254 · 6-20: 220 · 21+: 78</p>
+  </div>
+
+  <h2>Top concepts by total influence</h2>
+  <p class="dim">Influence = Σ weight across signed sections.</p>
+  <table><thead><tr><th>Concept</th><th>Sections</th><th>Σ weight</th><th>Avg weight</th></tr></thead><tbody><tr><td>divine warning and moral responsibility</td><td>282</td><td>49.9</td><td>0.177</td></tr><tr><td>covenant breach and consequences</td><td>147</td><td>36.4</td><td>0.247</td></tr><tr><td>divine deliverance and provision in history</td><td>111</td><td>26.9</td><td>0.242</td></tr><tr><td>personal lament as plea for divine intervention</td><td>67</td><td>26.8</td><td>0.401</td></tr><tr><td>divine mercy conditional on repentance and reform</td><td>146</td><td>25.7</td><td>0.176</td></tr><tr><td>prophetic obligation to convey divine message</td><td>121</td><td>20.5</td><td>0.170</td></tr><tr><td>divine justice and accountability on resurrection day</td><td>74</td><td>18.0</td><td>0.244</td></tr><tr><td>divine promise of land inheritance to descendants</td><td>85</td><td>17.3</td><td>0.204</td></tr><tr><td>divine lordship and mercy</td><td>79</td><td>15.7</td><td>0.199</td></tr><tr><td>divine judgment and expulsion from sacred space</td><td>83</td><td>15.4</td><td>0.185</td></tr><tr><td>righteousness contrasted with wickedness as life path</td><td>49</td><td>15.3</td><td>0.313</td></tr><tr><td>celebratory song of divine victory and salvation</td><td>43</td><td>13.5</td><td>0.314</td></tr><tr><td>prophetic confrontation of royal sin and divine retribution</td><td>51</td><td>12.9</td><td>0.253</td></tr><tr><td>divine invitation to worship and praise</td><td>51</td><td>12.9</td><td>0.253</td></tr><tr><td>prophetic affirmation of monotheism and rejection of falsehood</td><td>70</td><td>12.7</td><td>0.182</td></tr></tbody></table>
+
+  <h2>Cross-tradition spine
+    <span class="pill">101 in all 3</span>
+    <span class="pill">373 in 2</span>
+    <span class="pill">191 mono</span>
+  </h2>
+  <table><thead><tr><th>Concept (3 traditions)</th><th>Sections</th><th>Σ weight</th></tr></thead><tbody><tr><td>divine warning and moral responsibility</td><td>282</td><td>49.9</td></tr><tr><td>covenant breach and consequences</td><td>147</td><td>36.4</td></tr><tr><td>divine deliverance and provision in history</td><td>111</td><td>26.9</td></tr><tr><td>divine mercy conditional on repentance and reform</td><td>146</td><td>25.7</td></tr><tr><td>prophetic obligation to convey divine message</td><td>121</td><td>20.5</td></tr><tr><td>divine justice and accountability on resurrection day</td><td>74</td><td>18.0</td></tr><tr><td>divine promise of land inheritance to descendants</td><td>85</td><td>17.3</td></tr><tr><td>divine lordship and mercy</td><td>79</td><td>15.7</td></tr><tr><td>divine judgment and expulsion from sacred space</td><td>83</td><td>15.4</td></tr><tr><td>celebratory song of divine victory and salvation</td><td>43</td><td>13.5</td></tr><tr><td>testing believers through hardship and patience</td><td>64</td><td>11.8</td></tr><tr><td>divine command and guidance for warfare conduct</td><td>53</td><td>11.6</td></tr></tbody></table>
+
+  <h2>Novelty gate</h2>
+  <div class="stats">
+    <div class="stat"><div class="v">665</div><div class="l">Concepts minted</div></div>
+    <div class="stat"><div class="v">615</div><div class="l">Proposals gated</div></div>
+    <div class="stat"><div class="v">48%</div><div class="l">Reject rate</div></div>
+    <div class="stat"><div class="v">0.852</div><div class="l">Current τ</div></div>
+  </div>
+
+  <div class="grid2">
+    <div>
+      <h2>Founding concepts</h2>
+      <div class='card sm'><strong>divine creation of cosmos ex nihilo</strong><div class='dim'>The concept that the universe and all its elements were created by a divine being from nothing, emphasizing the initiation of existence by divine command.</div></div><div class='card sm'><strong>divine ordering of primordial chaos</strong><div class='dim'>The theological idea that a divine agent brings order and structure to an initially formless, void, and chaotic primordial state.</div></div><div class='card sm'><strong>creation of natural realms and boundaries</strong><div class='dim'>The establishment of distinct natural domains such as sky, land, and sea, and the separation between them by divine decree.</div></div><div class='card sm'><strong>creation of living creatures with reproductive mandate</strong><div class='dim'>The divine act of creating living beings, including plants, animals, and humans, with the command to multiply and fill the earth.</div></div><div class='card sm'><strong>human creation in divine image with stewardship role</strong><div class='dim'>The idea that humans are created in the image and likeness of the divine and are given authority and responsibility to rule over and care for the rest of creation.</div></div><div class='card sm'><strong>divine lordship and mercy</strong><div class='dim'>The concept that God is both the merciful and compassionate Lord who governs all worlds and is the ultimate judge, deserving of worship and supplication.</div></div>
+    </div>
+    <div>
+      <h2>Newest concepts</h2>
+      <div class='card sm'><strong>personification of wisdom as divine agent in creation</strong><div class='dim'>Wisdom is portrayed as a preexistent, personal entity who is present with God before and during the creation of the world, acting as a craftsman and delighting in creation. This personified Wisdom calls out to humanity, offering life, favor, and guidance to those who embrace her.</div></div><div class='card sm'><strong>practical wisdom for personal financial and social responsibility</strong><div class='dim'>Guidance on managing personal financial obligations and social relationships prudently to avoid entrapment and loss, emphasizing self-deliverance and proactive behavior. This includes warnings against becoming collateral for others and the urgency of freeing oneself from risky co</div></div><div class='card sm'><strong>divine omnipresence and intimate human knowledge</strong><div class='dim'>The concept that God is both omnipresent and possesses exhaustive, intimate knowledge of every aspect of human existence—thoughts, actions, intentions, and even physical formation—such that there is no place or state where one can escape divine presence or understanding.</div></div><div class='card sm'><strong>brotherly unity as source of divine blessing</strong><div class='dim'>The concept that communal harmony and fraternal unity among people is inherently good and pleasant, and is a source or condition for receiving divine blessing and life. This idea links the experience of unity to the outpouring of divine favor, using vivid metaphors of anointing o</div></div><div class='card sm'><strong>eternal priesthood in Melchizedek order</strong><div class='dim'>The concept of a unique, everlasting priesthood established by divine oath in the order of Melchizedek, distinct from the Levitical priesthood and conferred upon a royal figure as an enduring spiritual office.</div></div><div class='card sm'><strong>imprecatory prayer for enemy destruction</strong><div class='dim'>A prayer invoking divine judgment and curses upon enemies, asking for their ruin, loss of offspring, and social disgrace as a form of justice and vindication. This concept is characterized by detailed petitions for the adversary&#x27;s downfall and suffering, often in response to perc</div></div><div class='card sm'><strong>divine invitation to worship and praise</strong><div class='dim'>An explicit divine invitation for communal worship expressed through singing, shouting, thanksgiving, and reverence, emphasizing God’s creative power and care for his people.</div></div><div class='card sm'><strong>celebration of Zion as spiritual birthplace and source of life</strong><div class='dim'>The concept that Zion is portrayed as the sacred origin and spiritual birthplace of peoples, where divine favor establishes identity and life springs forth, celebrated with joy and communal affirmation.</div></div>
+    </div>
+  </div>
+
+  <h2>Recent signatures</h2>
+  <section class='card'><h3>Judaism <span class='pill'>70.8% done</span></h3><div class='sample'><strong>Psalms 91</strong><div class='dim'>divine miraculous protection from physical harm 0.35 · divine protection against demonic interference 0.30 · divine protective shelter as eschatological refuge 0.35</div></div><div class='sample'><strong>Psalms 90</strong><div class='dim'>desire for divine remembrance beyond death 0.10 · divine limitation of human lifespan 0.20 · divine mercy conditional on repentance and reform 0.15 · human mortality contrasted with natural renewal 0.35 · personal lament as plea for divine intervention 0.20</div></div><div class='sample'><strong>Psalms 89</strong><div class='dim'>covenant breach and consequences 0.30 · divine mercy conditional on repentance and reform 0.12 · divine promise of eternal royal dynasty 0.40 · royal lament as public mourning and teaching 0.18</div></div></section><section class='card'><h3>Christianity <span class='pill'>55.3% done</span></h3><div class='sample'><strong>Proverbs 30</strong><div class='dim'>divine signs in natural phenomena as proof of God 0.38 · divine warning and moral responsibility 0.15 · wisdom as divine revelation beyond human reach 0.32 · wisdom critique of human arrogance before God 0.15</div></div><div class='sample'><strong>Proverbs 29</strong><div class='dim'>divine warning and moral responsibility 0.15 · personal ethical self-examination and oath 0.08 · practical wisdom for personal financial and social responsibility 0.12 · righteous leadership as social protector and advocate 0.27 · righteousness contrasted with wickedness as life path 0.38</div></div><div class='sample'><strong>Proverbs 28</strong><div class='dim'>accusation of social injustice as source of divine judgment 0.15 · individual moral responsibility and intergenerational justice 0.10 · practical wisdom for personal financial and social responsibility 0.30 · righteousness contrasted with wickedness as life path 0.45</div></div></section><section class='card'><h3>Islam <span class='pill'>100.0% done</span></h3><div class='sample'><strong>An-Naas 114:1-6</strong><div class='dim'>divine lordship and mercy 0.25 · prayer for protection from evil forces 0.75</div></div><div class='sample'><strong>Al-Falaq 113:1-5</strong><div class='dim'>divine protection against demonic interference 0.15 · prayer for protection from evil forces 0.85</div></div><div class='sample'><strong>Al-Ikhlaas 112:1-4</strong><div class='dim'>divine self-sufficiency and eternal independence 0.35 · divine uniqueness and absolute singularity 0.65</div></div></section>
+
+  <p class="dim" style="margin-top:28px">Sacred Concepts Atlas · generated by scripts/export_concept_space.py</p>
+</main></body></html>

@@ -14,7 +14,7 @@ ORDER    ?= interleaved   # interleaved (fairness prior) | temporal (Tanakh->Bib
 CLOUD    ?=            # CLOUD=1 -> OpenAI agents (OPENAI_API_KEY in .env)
 ROUTER_MODEL ?=        # optional split: ROUTER_MODEL=atlas-router AGENT_MODEL=atlas-classifier (4090)
 
-.PHONY: agent-modelfile agent-modelfiles agent-run agent-resume concepts-export concepts-stats
+.PHONY: agent-modelfile agent-modelfiles agent-run agent-resume concepts-export concepts-stats concept-space-export
 
 agent-modelfile: ## Build the single-model Ollama agent (3060 config)
 	@ollama create $(AGENT_MODEL) -f modelfiles/atlas-conceptor.Modelfile
@@ -42,3 +42,13 @@ concepts-stats: ## Registry size, growth, weight sanity
 	@$(SQL) "SELECT COUNT(*) AS concepts FROM concepts WHERE status='active';"
 	@$(SQL) "SELECT run_id, COUNT(DISTINCT section_id) sections_done FROM section_concepts GROUP BY run_id;"
 	@$(SQL) "SELECT section_id, run_id, ROUND(SUM(weight),3) s FROM section_concepts GROUP BY section_id, run_id HAVING ABS(s-1.0) > 0.01 LIMIT 10;"
+
+concept-space-export: ## Snapshot concept space → HTML+JSON (artifacts/ + reviews/)
+	@$(PY) scripts/export_concept_space.py --db $(DB) --out-dir artifacts
+	@run=$$($(SQL) "SELECT run_id FROM runs ORDER BY started_at DESC LIMIT 1;"); \
+	  mkdir -p reviews; \
+	  cp -f artifacts/concept_space_$${run}_latest.html \
+	        reviews/concept_space_$${run}_latest.html; \
+	  cp -f artifacts/concept_space_$${run}_latest.json \
+	        reviews/concept_space_$${run}_latest.json; \
+	  echo "also: reviews/concept_space_$${run}_latest.html"

@@ -1,0 +1,334 @@
+{
+  "exported_at": "2026-07-18T02:13:39Z",
+  "run": "run_20260717_105303",
+  "model": "cloud:router=gpt-4.1-mini,classifier=gpt-4.1",
+  "started_at": "2026-07-17 17:53:03",
+  "order": "interleaved",
+  "signed": 1546,
+  "total": 2348,
+  "pct": 65.8,
+  "registry": 665,
+  "tau": 0.852,
+  "avgSigSize": 4.3,
+  "avgMaxWeight": 0.398,
+  "gate": {
+    "created": 665,
+    "rejected": 615
+  },
+  "traditionSpan": {
+    "mono": 191,
+    "cross2": 373,
+    "cross3": 101
+  },
+  "reuse": {
+    "2-5": 254,
+    "21+": 78,
+    "6-20": 220,
+    "once": 113
+  },
+  "byTradition": [
+    {
+      "tradition": "Christianity",
+      "signed": 658,
+      "total": 1189,
+      "pct": 55.3
+    },
+    {
+      "tradition": "Islam",
+      "signed": 230,
+      "total": 230,
+      "pct": 100.0
+    },
+    {
+      "tradition": "Judaism",
+      "signed": 658,
+      "total": 929,
+      "pct": 70.8
+    }
+  ],
+  "sigSizeHist": [
+    {
+      "label": "2",
+      "value": 54
+    },
+    {
+      "label": "3",
+      "value": 264
+    },
+    {
+      "label": "4",
+      "value": 561
+    },
+    {
+      "label": "5",
+      "value": 504
+    },
+    {
+      "label": "6",
+      "value": 158
+    },
+    {
+      "label": "7",
+      "value": 5
+    }
+  ],
+  "top": [
+    {
+      "name": "divine warning and moral responsibility",
+      "sections": 282,
+      "influence": 49.92,
+      "avg": 0.177
+    },
+    {
+      "name": "covenant breach and consequences",
+      "sections": 147,
+      "influence": 36.38,
+      "avg": 0.247
+    },
+    {
+      "name": "divine deliverance and provision in history",
+      "sections": 111,
+      "influence": 26.87,
+      "avg": 0.242
+    },
+    {
+      "name": "personal lament as plea for divine intervention",
+      "sections": 67,
+      "influence": 26.84,
+      "avg": 0.401
+    },
+    {
+      "name": "divine mercy conditional on repentance and reform",
+      "sections": 146,
+      "influence": 25.69,
+      "avg": 0.176
+    },
+    {
+      "name": "prophetic obligation to convey divine message",
+      "sections": 121,
+      "influence": 20.51,
+      "avg": 0.17
+    },
+    {
+      "name": "divine justice and accountability on resurrection day",
+      "sections": 74,
+      "influence": 18.04,
+      "avg": 0.244
+    },
+    {
+      "name": "divine promise of land inheritance to descendants",
+      "sections": 85,
+      "influence": 17.32,
+      "avg": 0.204
+    },
+    {
+      "name": "divine lordship and mercy",
+      "sections": 79,
+      "influence": 15.69,
+      "avg": 0.199
+    },
+    {
+      "name": "divine judgment and expulsion from sacred space",
+      "sections": 83,
+      "influence": 15.38,
+      "avg": 0.185
+    },
+    {
+      "name": "righteousness contrasted with wickedness as life path",
+      "sections": 49,
+      "influence": 15.32,
+      "avg": 0.313
+    },
+    {
+      "name": "celebratory song of divine victory and salvation",
+      "sections": 43,
+      "influence": 13.5,
+      "avg": 0.314
+    },
+    {
+      "name": "prophetic confrontation of royal sin and divine retribution",
+      "sections": 51,
+      "influence": 12.9,
+      "avg": 0.253
+    },
+    {
+      "name": "divine invitation to worship and praise",
+      "sections": 51,
+      "influence": 12.89,
+      "avg": 0.253
+    },
+    {
+      "name": "prophetic affirmation of monotheism and rejection of falsehood",
+      "sections": 70,
+      "influence": 12.74,
+      "avg": 0.182
+    }
+  ],
+  "cross3": [
+    {
+      "name": "divine warning and moral responsibility",
+      "sections": 282,
+      "influence": 49.92
+    },
+    {
+      "name": "covenant breach and consequences",
+      "sections": 147,
+      "influence": 36.38
+    },
+    {
+      "name": "divine deliverance and provision in history",
+      "sections": 111,
+      "influence": 26.87
+    },
+    {
+      "name": "divine mercy conditional on repentance and reform",
+      "sections": 146,
+      "influence": 25.69
+    },
+    {
+      "name": "prophetic obligation to convey divine message",
+      "sections": 121,
+      "influence": 20.51
+    },
+    {
+      "name": "divine justice and accountability on resurrection day",
+      "sections": 74,
+      "influence": 18.04
+    },
+    {
+      "name": "divine promise of land inheritance to descendants",
+      "sections": 85,
+      "influence": 17.32
+    },
+    {
+      "name": "divine lordship and mercy",
+      "sections": 79,
+      "influence": 15.69
+    },
+    {
+      "name": "divine judgment and expulsion from sacred space",
+      "sections": 83,
+      "influence": 15.38
+    },
+    {
+      "name": "celebratory song of divine victory and salvation",
+      "sections": 43,
+      "influence": 13.5
+    },
+    {
+      "name": "testing believers through hardship and patience",
+      "sections": 64,
+      "influence": 11.84
+    },
+    {
+      "name": "divine command and guidance for warfare conduct",
+      "sections": 53,
+      "influence": 11.63
+    }
+  ],
+  "oldest": [
+    {
+      "name": "divine creation of cosmos ex nihilo",
+      "definition": "The concept that the universe and all its elements were created by a divine being from nothing, emphasizing the initiation of existence by divine command."
+    },
+    {
+      "name": "divine ordering of primordial chaos",
+      "definition": "The theological idea that a divine agent brings order and structure to an initially formless, void, and chaotic primordial state."
+    },
+    {
+      "name": "creation of natural realms and boundaries",
+      "definition": "The establishment of distinct natural domains such as sky, land, and sea, and the separation between them by divine decree."
+    },
+    {
+      "name": "creation of living creatures with reproductive mandate",
+      "definition": "The divine act of creating living beings, including plants, animals, and humans, with the command to multiply and fill the earth."
+    },
+    {
+      "name": "human creation in divine image with stewardship role",
+      "definition": "The idea that humans are created in the image and likeness of the divine and are given authority and responsibility to rule over and care for the rest of creation."
+    },
+    {
+      "name": "divine lordship and mercy",
+      "definition": "The concept that God is both the merciful and compassionate Lord who governs all worlds and is the ultimate judge, deserving of worship and supplication."
+    }
+  ],
+  "newest": [
+    {
+      "name": "personification of wisdom as divine agent in creation",
+      "definition": "Wisdom is portrayed as a preexistent, personal entity who is present with God before and during the creation of the world, acting as a craftsman and delighting in creation. This personified Wisdom calls out to humanity, offering life, favor, and guidance to those who embrace her."
+    },
+    {
+      "name": "practical wisdom for personal financial and social responsibility",
+      "definition": "Guidance on managing personal financial obligations and social relationships prudently to avoid entrapment and loss, emphasizing self-deliverance and proactive behavior. This includes warnings against becoming collateral for others and the urgency of freeing oneself from risky co"
+    },
+    {
+      "name": "divine omnipresence and intimate human knowledge",
+      "definition": "The concept that God is both omnipresent and possesses exhaustive, intimate knowledge of every aspect of human existence—thoughts, actions, intentions, and even physical formation—such that there is no place or state where one can escape divine presence or understanding."
+    },
+    {
+      "name": "brotherly unity as source of divine blessing",
+      "definition": "The concept that communal harmony and fraternal unity among people is inherently good and pleasant, and is a source or condition for receiving divine blessing and life. This idea links the experience of unity to the outpouring of divine favor, using vivid metaphors of anointing o"
+    },
+    {
+      "name": "eternal priesthood in Melchizedek order",
+      "definition": "The concept of a unique, everlasting priesthood established by divine oath in the order of Melchizedek, distinct from the Levitical priesthood and conferred upon a royal figure as an enduring spiritual office."
+    },
+    {
+      "name": "imprecatory prayer for enemy destruction",
+      "definition": "A prayer invoking divine judgment and curses upon enemies, asking for their ruin, loss of offspring, and social disgrace as a form of justice and vindication. This concept is characterized by detailed petitions for the adversary's downfall and suffering, often in response to perc"
+    },
+    {
+      "name": "divine invitation to worship and praise",
+      "definition": "An explicit divine invitation for communal worship expressed through singing, shouting, thanksgiving, and reverence, emphasizing God’s creative power and care for his people."
+    },
+    {
+      "name": "celebration of Zion as spiritual birthplace and source of life",
+      "definition": "The concept that Zion is portrayed as the sacred origin and spiritual birthplace of peoples, where divine favor establishes identity and life springs forth, celebrated with joy and communal affirmation."
+    }
+  ],
+  "samples": {
+    "Judaism": [
+      {
+        "ref": "Psalms 91",
+        "sig": "divine miraculous protection from physical harm 0.35 · divine protection against demonic interference 0.30 · divine protective shelter as eschatological refuge 0.35"
+      },
+      {
+        "ref": "Psalms 90",
+        "sig": "desire for divine remembrance beyond death 0.10 · divine limitation of human lifespan 0.20 · divine mercy conditional on repentance and reform 0.15 · human mortality contrasted with natural renewal 0.35 · personal lament as plea for divine intervention 0.20"
+      },
+      {
+        "ref": "Psalms 89",
+        "sig": "covenant breach and consequences 0.30 · divine mercy conditional on repentance and reform 0.12 · divine promise of eternal royal dynasty 0.40 · royal lament as public mourning and teaching 0.18"
+      }
+    ],
+    "Christianity": [
+      {
+        "ref": "Proverbs 30",
+        "sig": "divine signs in natural phenomena as proof of God 0.38 · divine warning and moral responsibility 0.15 · wisdom as divine revelation beyond human reach 0.32 · wisdom critique of human arrogance before God 0.15"
+      },
+      {
+        "ref": "Proverbs 29",
+        "sig": "divine warning and moral responsibility 0.15 · personal ethical self-examination and oath 0.08 · practical wisdom for personal financial and social responsibility 0.12 · righteous leadership as social protector and advocate 0.27 · righteousness contrasted with wickedness as life path 0.38"
+      },
+      {
+        "ref": "Proverbs 28",
+        "sig": "accusation of social injustice as source of divine judgment 0.15 · individual moral responsibility and intergenerational justice 0.10 · practical wisdom for personal financial and social responsibility 0.30 · righteousness contrasted with wickedness as life path 0.45"
+      }
+    ],
+    "Islam": [
+      {
+        "ref": "An-Naas 114:1-6",
+        "sig": "divine lordship and mercy 0.25 · prayer for protection from evil forces 0.75"
+      },
+      {
+        "ref": "Al-Falaq 113:1-5",
+        "sig": "divine protection against demonic interference 0.15 · prayer for protection from evil forces 0.85"
+      },
+      {
+        "ref": "Al-Ikhlaas 112:1-4",
+        "sig": "divine self-sufficiency and eternal independence 0.35 · divine uniqueness and absolute singularity 0.65"
+      }
+    ]
+  },
+  "lastRef": "Proverbs 30 (bible_en_web)"
+}
