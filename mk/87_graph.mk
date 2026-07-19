@@ -16,7 +16,14 @@ NPMI_FLOOR        ?= 0.10     # positive-association floor
 COVAR_MIN_JOINT   ?= 5        # joint sections before an r-value is trusted
 COVAR_R_FLOOR     ?= 0.40     # |r| floor
 
-.PHONY: graph graph-discover graph-export graph-stats graph-clean
+.PHONY: graph graph-discover graph-export graph-stats graph-clean \
+        concept-merge signal-harness
+
+concept-merge: ## Merge near-duplicate concepts (LLM-adjudicated; DRY=1 to preview)
+	@$(PY) scripts/merge_concepts.py --db $(DB) $(if $(DRY),--dry-run)
+
+signal-harness: ## Concept-signal vs semantic-baseline retrieval comparison
+	@$(PY) scripts/concept_signal_harness.py --db $(DB)
 
 graph: ## Build all 5 edge kinds from latest finished run (RUN_ID= to pin)
 	@$(PY) scripts/build_edges.py --db $(DB) $(RUN_FLAG) --kind all \

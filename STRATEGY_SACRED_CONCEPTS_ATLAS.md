@@ -1024,3 +1024,55 @@ means early sections mint concepts and late sections reuse them). Edge
 building should only run on a **completed** pass, and the interleaved
 processing order (§7) exists partly to protect this property if a run is
 ever inspected mid-flight.
+
+### 9.6 Concept merge pass (implemented 2026-07-18)
+
+`scripts/merge_concepts.py` — the QA gate before trusting concept↔concept
+edges. Mechanical shortlist (definition-embedding cosine ≥ 0.82; the GPT
+registry had only 15 such pairs), then **LLM adjudication** of the band —
+cosine alone cannot separate "ritual expiation for unknown manslaughter" ~
+"ceremonial cleansing and atonement for unknown homicide" (duplicate,
+merged) from "burnt offering" ~ "peace offering" procedures (0.85 cosine,
+genuinely distinct). Merges re-point `section_concepts` rows to the
+canonical concept, summing weights when both appeared in one signature (the
+sum-to-1.0 invariant is preserved by construction); losers keep their row
+with `status='merged'` + `merged_into`, names move into `aliases`. First
+pass on the GPT run: **2 merges, 13 kept as distinct, registry 806 → 804**
+— the τ gate had already done most of the deduplication during ingestion.
+Singletons get a nearest-neighbor census in the report (78 of them; the
+long tail is legitimately unique, not defective). Edges are rebuilt after
+any merge (`make graph && make graph-discover`).
+
+## 10. Concept-signal retrieval — the concept space in query orchestration (2026-07-18)
+
+**Design principle: separate responsibilities, separate buckets.** The text
+arms (BM25 + per-source semantic) rank pages by words and embedding
+neighborhoods. The new **concept-signal arm** (`scripts/concept_signal.py`)
+never touches text for ranking: query embedding ↔ concept-definition cosine
+(floor 0.45) → one co-occurrence hop in the concept graph (NPMI-weighted,
+0.5 discount) → sections scored by `Σ concept_score × signature_weight` →
+each section reduced to its best page by query cosine. Pure numpy + SQL,
+no LLM, ~ms per query.
+
+**Wiring (KISS, non-breaking):** the bucket (≤5 pages, minus anything the
+text arms already found) is appended to the gap agent's context as a
+labeled block — "found through the concept space, not text search" — and is
+judged by the same relevance gate as every other page. It gets a token
+fusion score (0.05) so bookkeeping survives; its real survival rides on gap
+relevance. `--no-concept-signal` disables; the arm self-skips when the DB
+has no finished ingestion run. Failure mode: one wasted context slot,
+droppable. Success mode: pages no text query can reach.
+
+**Harness (`scripts/concept_signal_harness.py`, retrieval-level, no LLM):**
+10 queries × two buckets, section-Jaccard + novelty + tradition mix.
+First run: **mean overlap 0.04** — a genuinely separate signal — with the
+signal bucket plainly superior on concept-shaped queries (reluctant prophet:
+Exodus 4 / Jonah / Taa-Haa 20 / Jeremiah 1 vs the baseline's false-prophet
+laws; mercy: Jonah 3 / Hosea 14 / Psalm 51). Even the genealogy control
+(designed for text search to win) went to the concept arm because ingestion
+minted six "genealogical record of X" concepts. Known weaknesses (v0.2
+candidates): graph expansion over-pulls in dense legal clusters, language
+twins occupy two bucket seats, Islam under-seated on some queries. Report:
+`reviews/REPORT_CONCEPT_SIGNAL_HARNESS_2026-07-18.md`. End-to-end check on
+the live pipeline: all 5 signal pages cleared the gap gate (0.6–0.8
+relevance) and one (Taa-Haa 20:46-54) was cited in the final report.

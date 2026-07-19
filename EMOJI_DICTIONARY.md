@@ -39,6 +39,7 @@ use them consistently.
 | 🕳️ | Gap identified: missing coverage in retrieved material |
 | ➕ | Follow-up queries added (second retrieval pass) |
 | 🏷️ | Concept signature attached to a page/section |
+| 🧿 | Concept-signal arm: retrieval through concept space + graph (separate bucket) |
 
 ## Concept space (ingestion)
 

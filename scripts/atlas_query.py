@@ -30,6 +30,7 @@ from atlas_lib import (TRAD_EMOJI, blob_to_vec, clip, cloud_chat, cosine_top_k,
                        db_connect, embed_texts, hr, load_env, now_iso,
                        ollama_chat, parse_json_response, say,
                        slugify, strip_marks)
+from concept_signal import ConceptSignal
 
 ROOT = Path(__file__).resolve().parent.parent
 PROMPTS = ROOT / "modelfiles"
@@ -49,6 +50,9 @@ REPORT_BUDGET = 11000                    # chars of curated context for report
 EVIDENCE_BUDGET = 10000                  # chars of referenced-page text for evidence
 RELEVANCE_GATE = 0.35                    # gap scores below this are dropped
 MAX_ATTEMPTS = 3
+CONCEPT_BUCKET_K = 5                     # pages the concept-signal arm may add
+CONCEPT_SIGNAL_BONUS = 0.05              # base fusion score for signal pages
+                                         # (survival rides on gap relevance)
 
 # --cloud [provider]: per-role cloud models. qwen3:8b's 8k num_ctx forces the
 # tight char budgets above; cloud models lift that ceiling, so budgets scale
@@ -189,8 +193,10 @@ class QueryIndex:
         # practice. Per-source row indexes let the semantic arm rank each
         # source separately and fuse the silos on equal footing.
         self.rows_by_source: dict[str, np.ndarray] = {}
+        self.rows_by_section: dict[str, list[int]] = {}
         for i, r in enumerate(rows):
             self.rows_by_source.setdefault(r[2], []).append(i)
+            self.rows_by_section.setdefault(r[1], []).append(i)
         self.rows_by_source = {s: np.array(v) for s, v in self.rows_by_source.items()}
         self.tradition = dict(con.execute("SELECT source_id, tradition FROM sources"))
         # latest run's signatures (extensibility hook: empty until ingestion runs)
@@ -221,6 +227,19 @@ class QueryIndex:
             top = idx[np.argsort(-sims[idx])[:k]]
             out[sid] = [self.page_ids[i] for i in top]
         return out
+
+    def best_page_in_section(self, section_id, qvec):
+        """Reduce a section to its most query-relevant page (sections are 1-6
+        pages; the concept-signal arm scores sections, context wants pages)."""
+        idx = self.rows_by_section.get(section_id)
+        if not idx:
+            return None
+        q = np.asarray(qvec, dtype=np.float32)
+        q = q / (np.linalg.norm(q) or 1.0)
+        sub = self.mat[idx]
+        sims = (sub @ q) / np.where(
+            np.linalg.norm(sub, axis=1) == 0, 1.0, np.linalg.norm(sub, axis=1))
+        return self.page_ids[idx[int(np.argmax(sims))]]
 
     def term_search(self, term, sources, k):
         # FTS index stores mark-stripped text; normalize the query identically.
@@ -369,6 +388,45 @@ def apply_lookups(lookup, refs, scores, log, event):
     if hits:
         log({"event": event, "lookups": hits})
     return hits
+
+
+def concept_signal_bucket(signal, index, qvec, exclude, log):
+    """Separate retrieval bucket via the concept space + co-occurrence graph.
+
+    Responsibilities stay separate: the text arms rank by words/embeddings,
+    this arm ranks sections by signature weight on query-matched concepts,
+    then reduces each section to its best page. Returns (pages, evidence,
+    matched_concepts); the bucket is shown to the gap agent as its own block
+    and lives or dies by the same relevance gate as everything else."""
+    sections, matched = signal.search(qvec)
+    pages, ev = [], {}
+    for sec, score, evidence in sections:
+        pid = index.best_page_in_section(sec, qvec)
+        if pid is None or pid in exclude or pid in pages:
+            continue
+        pages.append(pid)
+        ev[pid] = {"section": sec, "section_score": score,
+                   "concepts": [{"name": n, "sig_weight": w, "score": cs,
+                                 "via": via} for n, w, cs, via in evidence]}
+        if len(pages) >= CONCEPT_BUCKET_K:
+            break
+    log({"event": "concept_signal", "run_id": signal.run_id,
+         "matched_concepts": [{"name": n, "score": s, "via": v}
+                              for n, s, v in matched],
+         "pages": [{"page_id": p, **ev[p]} for p in pages]})
+    return pages, ev, matched
+
+
+def show_signal(index, pages, ev, matched):
+    say("🧿", f"concept-signal arm: {len(matched)} concepts matched, "
+        f"{len(pages)} pages added as a separate bucket")
+    for n, s, via in matched:
+        say("•", f"{n}  {s:.2f}" + (f"  (via graph: {via})" if via else ""), 1)
+    for pid in pages:
+        m = index.meta[pid]
+        trad = TRAD_EMOJI.get(index.tradition[m["source_id"]], "•")
+        top = ev[pid]["concepts"][0]["name"] if ev[pid]["concepts"] else ""
+        say(trad, f"{m['ref']}  (signal {ev[pid]['section_score']:.2f} · {top})", 1)
 
 
 def rrf_fuse(ranked_lists: list[list[str]]) -> dict[str, float]:
@@ -619,7 +677,7 @@ def render_report(query, report, evidence, gap_out) -> str:
 
 def run_query(query, *, db=None, model="atlas-conceptor", embed_model="bge-m3",
               sources=None, out_dir=None, seed=7000, cloud=None,
-              session_context=""):
+              session_context="", concept_signal=True):
     """Full pipeline as a callable (CLI and portal share it).
 
     cloud: None/False for local Ollama agents, or a provider name
@@ -720,19 +778,48 @@ def run_query(query, *, db=None, model="atlas-conceptor", embed_model="bge-m3",
     log_retrieval(log, "retrieval1", index, scores, stage1)
     show_pages(index, stage1, scores, "pages enter gap review")
 
+    # ---- 2b. CONCEPT-SIGNAL BUCKET (separate arm; see concept_signal.py) ----
+    signal_pages, signal_ev = [], {}
+    signal = ConceptSignal(con) if concept_signal else None
+    if signal and signal.ok:
+        qvec = embed_texts([query], embed_model)[0]
+        signal_pages, signal_ev, matched = concept_signal_bucket(
+            signal, index, qvec, exclude=set(stage1), log=log)
+        if signal_pages:
+            show_signal(index, signal_pages, signal_ev, matched)
+            for pid in signal_pages:
+                scores[pid] = scores.get(pid, 0.0) + CONCEPT_SIGNAL_BONUS
+        else:
+            say("🧿", "concept-signal arm: no concepts matched above floor "
+                "(or all pages already retrieved)")
+    elif concept_signal:
+        say("🧿", "concept-signal arm skipped: no finished ingestion run "
+            "in this DB")
+
     # ---- 3. GAP ----
     hr("STAGE 3 · GAP — relevance gate + hole detection")
     ctx1 = "\n\n".join(index.entry(pid) for pid in stage1)
+    sig_block = ""
+    if signal_pages:
+        sig_entries = "\n\n".join(
+            index.entry(pid, cap=max(s1_budget // 8, 700))
+            for pid in signal_pages)
+        sig_block = (
+            "\n\nCONCEPT-SIGNAL PAGES (separate bucket — found through the "
+            "concept space and concept graph rather than text search; their "
+            "concept signatures are shown inline. Judge their relevance "
+            "exactly like the pages above):\n" + sig_entries)
     gap = call_role(model, "gap",
                     f"{ctx_block}QUERY: {query}\n\nPROBE RATIONALE: {probe['rationale']}\n\n"
-                    f"RETRIEVED PAGES:\n{ctx1}",
+                    f"RETRIEVED PAGES:\n{ctx1}{sig_block}",
                     think=True, schema=gap_schema(langs), seed=seed + 10,
                     log=log, provider=provider)
     relevance = {p: float(v) for p, v in gap.get("relevance", {}).items()}
-    kept = [p for p in stage1 if relevance.get(p, 1.0) >= RELEVANCE_GATE]
-    dropped = [p for p in stage1 if p not in kept]
+    gated = stage1 + [p for p in signal_pages if p not in stage1]
+    kept = [p for p in gated if relevance.get(p, 1.0) >= RELEVANCE_GATE]
+    dropped = [p for p in gated if p not in kept]
     add_terms, add_sem = flatten_queries(gap.get("queries"))
-    show_gap(gap, relevance, stage1, kept, add_terms, add_sem)
+    show_gap(gap, relevance, gated, kept, add_terms, add_sem)
 
     # ---- 4. RETRIEVAL 2 + MERGE ----
     hr("STAGE 4 · RETRIEVAL — follow-up pass + merge")
@@ -818,11 +905,14 @@ def main() -> int:
                     help="run agents on a cloud provider: --cloud [openai|grok] "
                          "(bare --cloud = openai; per-role models, 3x char "
                          "budgets); retrieval/embeddings stay local")
+    ap.add_argument("--no-concept-signal", action="store_true",
+                    help="disable the concept-space retrieval bucket")
     args = ap.parse_args()
     result = run_query(
         args.query, db=args.db, model=args.model, embed_model=args.embed_model,
         sources=[s.strip() for s in args.sources.split(",")] if args.sources else None,
-        out_dir=args.out_dir, seed=args.seed, cloud=args.cloud)
+        out_dir=args.out_dir, seed=args.seed, cloud=args.cloud,
+        concept_signal=not args.no_concept_signal)
     hr("REPORT")
     print(f"\n{result['report_md']}\n")
     hr()
