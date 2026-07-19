@@ -26,9 +26,9 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent))
-from atlas_lib import (TRAD_EMOJI, blob_to_vec, clip, cosine_top_k,
+from atlas_lib import (TRAD_EMOJI, blob_to_vec, clip, cloud_chat, cosine_top_k,
                        db_connect, embed_texts, hr, load_env, now_iso,
-                       ollama_chat, openai_chat, parse_json_response, say,
+                       ollama_chat, parse_json_response, say,
                        slugify, strip_marks)
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -50,13 +50,19 @@ EVIDENCE_BUDGET = 10000                  # chars of referenced-page text for evi
 RELEVANCE_GATE = 0.35                    # gap scores below this are dropped
 MAX_ATTEMPTS = 3
 
-# --cloud: per-role OpenAI models. qwen3:8b's 8k num_ctx forces the tight
-# char budgets above; cloud models lift that ceiling, so budgets scale up.
-# Reasoning-heavy stages (gap, evidence) and the writer get gpt-4.1
-# (1M context, strongest instruction following + verbatim-quote fidelity);
-# the probe's small planning task runs on gpt-4.1-mini.
-CLOUD_ROLE_MODELS = {"probe": "gpt-4.1-mini", "gap": "gpt-4.1",
-                     "report": "gpt-4.1", "evidence": "gpt-4.1"}
+# --cloud [provider]: per-role cloud models. qwen3:8b's 8k num_ctx forces the
+# tight char budgets above; cloud models lift that ceiling, so budgets scale
+# up. Reasoning-heavy stages (gap, evidence) and the writer get the flagship
+# (long context, strongest instruction following + verbatim-quote fidelity);
+# the probe's small planning task runs on the cheap tier. Budgets are the
+# SAME for every provider so cross-provider reports stay comparable — the
+# model-bias comparison must not be confounded by different context sizes.
+CLOUD_ROLE_MODELS = {
+    "openai": {"probe": "gpt-4.1-mini", "gap": "gpt-4.1",
+               "report": "gpt-4.1", "evidence": "gpt-4.1"},
+    "grok": {"probe": "grok-4.20-0309-non-reasoning", "gap": "grok-4.5",
+             "report": "grok-4.5", "evidence": "grok-4.5"},
+}
 CLOUD_BUDGET_MULT = 3                    # stage char budgets x3 under --cloud
 
 # Query plans are level-plain across corpus languages: the schema carries one
@@ -443,30 +449,32 @@ ROLE_EMOJI = {"probe": "🔭", "gap": "🔬", "report": "📜", "evidence": "�
 
 # ---------- agents ----------
 
-def call_role(model, role, user, *, think, schema, seed, log, cloud=False):
+def call_role(model, role, user, *, think, schema, seed, log, provider=None):
     core = (PROMPTS / "query_core.md").read_text()
     system = core + "\n" + (PROMPTS / f"{role}_role.md").read_text()
     opts = dict(THINK_OPTS if think else NOTHINK_OPTS)
-    if cloud:
-        model = CLOUD_ROLE_MODELS[role]
+    if provider:
+        model = CLOUD_ROLE_MODELS[provider][role]
     say("🧠" if think else "⚡",
         f"{ROLE_EMOJI.get(role, '🤖')} {role.upper()} agent "
-        f"({'☁️ ' + model if cloud else ('thinking' if think else 'fast') + ' mode'}"
+        f"({'☁️ ' + model if provider else ('thinking' if think else 'fast') + ' mode'}"
         f", {len(user):,} chars in)…")
     t0 = time.time()
     last = None
     for attempt in range(MAX_ATTEMPTS):
         try:
-            if cloud:
-                resp = openai_chat(model, system, user, seed=seed + attempt,
-                                   temperature=0.2 if think else 0.4)
+            if provider:
+                resp = cloud_chat(provider, model, system, user,
+                                  seed=seed + attempt,
+                                  temperature=0.2 if think else 0.4,
+                                  timeout=600)
             else:
                 opts["seed"] = seed + attempt
                 resp = ollama_chat(model, system, user, think=think,
                                    options=opts, json_schema=schema)
             out = parse_json_response(resp["content"])
             log({"event": role, "output": out, "attempt": attempt,
-                 "model": model, "cloud": cloud})
+                 "model": model, "provider": provider or "local"})
             say("⏱️", f"{role} answered in {time.time() - t0:.0f}s"
                 + (f" (attempt {attempt + 1})" if attempt else ""), 1)
             return out
@@ -610,9 +618,12 @@ def render_report(query, report, evidence, gap_out) -> str:
 
 
 def run_query(query, *, db=None, model="atlas-conceptor", embed_model="bge-m3",
-              sources=None, out_dir=None, seed=7000, cloud=False,
+              sources=None, out_dir=None, seed=7000, cloud=None,
               session_context=""):
     """Full pipeline as a callable (CLI and portal share it).
+
+    cloud: None/False for local Ollama agents, or a provider name
+    ("openai", "grok"); True is accepted as legacy for "openai".
 
     session_context: prior-conversation text (the portal's FIFO char bucket).
     Injected into probe/gap/report prompts, where resolving references like
@@ -621,9 +632,10 @@ def run_query(query, *, db=None, model="atlas-conceptor", embed_model="bge-m3",
     Returns dict with report_md, report, evidence, gap_report,
     referenced_pages, out_dir, elapsed_s.
     """
-    if cloud:
+    provider = "openai" if cloud is True else (cloud or None)
+    if provider:
         load_env()
-    mult = CLOUD_BUDGET_MULT if cloud else 1
+    mult = CLOUD_BUDGET_MULT if provider else 1
     s1_budget, rep_budget, ev_budget = (
         STAGE1_BUDGET * mult, REPORT_BUDGET * mult, EVIDENCE_BUDGET * mult)
 
@@ -669,9 +681,9 @@ def run_query(query, *, db=None, model="atlas-conceptor", embed_model="bge-m3",
     say("📚", f"{len(sources)} sources, {len(index.page_ids):,} pages indexed"
         + (f", 🏷️ {n_sigs} sections carry concept signatures"
            if n_sigs else " (no concept signatures yet — ingestion pending)"))
-    if cloud:
-        say("☁️", "cloud agents: " + ", ".join(
-            f"{r}={m}" for r, m in CLOUD_ROLE_MODELS.items())
+    if provider:
+        say("☁️", f"cloud agents [{provider}]: " + ", ".join(
+            f"{r}={m}" for r, m in CLOUD_ROLE_MODELS[provider].items())
             + f" · char budgets ×{CLOUD_BUDGET_MULT} · retrieval stays local")
     if ctx_block:
         say("🧵", f"session context: {len(session_context):,} chars "
@@ -690,7 +702,7 @@ def run_query(query, *, db=None, model="atlas-conceptor", embed_model="bge-m3",
                       f"{ctx_block}QUERY: {query}\n\nSOURCE DICTIONARY:\n{src_block}\n\n"
                       f"CORPUS OUTLINE (book: chapter/surah-part count):\n{outline}",
                       think=False, schema=probe_schema(langs), seed=seed,
-                      log=log, cloud=cloud)
+                      log=log, provider=provider)
     terms, semantic = flatten_queries(probe.get("queries"))
     show_probe(probe, terms, semantic)
 
@@ -715,7 +727,7 @@ def run_query(query, *, db=None, model="atlas-conceptor", embed_model="bge-m3",
                     f"{ctx_block}QUERY: {query}\n\nPROBE RATIONALE: {probe['rationale']}\n\n"
                     f"RETRIEVED PAGES:\n{ctx1}",
                     think=True, schema=gap_schema(langs), seed=seed + 10,
-                    log=log, cloud=cloud)
+                    log=log, provider=provider)
     relevance = {p: float(v) for p, v in gap.get("relevance", {}).items()}
     kept = [p for p in stage1 if relevance.get(p, 1.0) >= RELEVANCE_GATE]
     dropped = [p for p in stage1 if p not in kept]
@@ -756,7 +768,7 @@ def run_query(query, *, db=None, model="atlas-conceptor", embed_model="bge-m3",
                        f"{ctx_block}QUERY: {query}\n\nGAP REPORT: {gap['gap_report']}\n\n"
                        f"CURATED PAGES:\n{ctx2}",
                        think=False, schema=REPORT_SCHEMA, seed=seed + 20,
-                       log=log, cloud=cloud)
+                       log=log, provider=provider)
     resolve = make_ref_resolver(index)
     report["referenced_pages"] = [resolve(p) for p in report.get("referenced_pages", [])]
     refd = [p for p in report["referenced_pages"] if p in index.meta] or final_pages
@@ -771,7 +783,7 @@ def run_query(query, *, db=None, model="atlas-conceptor", embed_model="bge-m3",
                          f"{json.dumps(report, ensure_ascii=False, indent=1)}\n\n"
                          f"REFERENCED PAGES (full text):\n{ev_ctx}",
                          think=True, schema=EVIDENCE_SCHEMA, seed=seed + 30,
-                         log=log, cloud=cloud)
+                         log=log, provider=provider)
     normalize_evidence_refs(evidence, resolve)
     show_evidence(evidence)
 
@@ -801,8 +813,10 @@ def main() -> int:
                     help="comma-separated source_ids (default: all)")
     ap.add_argument("--out-dir", default=str(ROOT / "queries"))
     ap.add_argument("--seed", type=int, default=7000)
-    ap.add_argument("--cloud", action="store_true",
-                    help="run agents on OpenAI (per-role models, 3x char "
+    ap.add_argument("--cloud", nargs="?", const="openai", default=None,
+                    choices=list(CLOUD_ROLE_MODELS),
+                    help="run agents on a cloud provider: --cloud [openai|grok] "
+                         "(bare --cloud = openai; per-role models, 3x char "
                          "budgets); retrieval/embeddings stay local")
     args = ap.parse_args()
     result = run_query(

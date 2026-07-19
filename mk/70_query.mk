@@ -7,14 +7,15 @@
 
 SOURCES ?=
 CLOUD   ?=    # CLOUD=1 -> OpenAI agents (needs OPENAI_API_KEY in .env)
+PROVIDER ?=   # PROVIDER=grok|openai -> cloud agents on that provider (overrides CLOUD)
 
 .PHONY: query portal
 
-query: ## Run a query (Q="...", optional SOURCES=a,b CLOUD=1)
+query: ## Run a query (Q="...", optional SOURCES=a,b CLOUD=1 or PROVIDER=grok)
 	@test -n "$(Q)" || { echo 'Usage: make query Q="your question"'; exit 1; }
 	@$(PY) scripts/atlas_query.py --db $(DB) --model $(AGENT_MODEL) \
 		--embed-model $(EMBED_MODEL) $(if $(SOURCES),--sources $(SOURCES)) \
-		$(if $(CLOUD),--cloud) "$(Q)"
+		$(if $(PROVIDER),--cloud $(PROVIDER),$(if $(CLOUD),--cloud)) "$(Q)"
 
 PORTAL_PORT ?= 8877
 PORTAL_HOST ?= 127.0.0.1   # put a reverse proxy (sacred.dylanmccapes.systems) in front

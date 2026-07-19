@@ -49,7 +49,15 @@ use them consistently.
 | ♻️ | Existing concept reused |
 | 🚧 | New-concept proposal gated by rising threshold τ(n) |
 | 🧮 | Registry size / τ state |
-| ⚓ | Anchor verse (verse-anchored evidence retrieval) |
+| ⚓ | Anchor verse (verse-anchored evidence retrieval) / parallel-text match |
+
+## Graph (Phase 4)
+
+| Emoji | Meaning |
+|-------|---------|
+| 🔗 | Edge set materialized (kind + count) |
+| 💎 | Discovery-queue candidate (conceptual link, no structural explanation) |
+| 🌍 | Cross-tradition pair |
 
 ## System
 
@@ -65,4 +73,6 @@ use them consistently.
 | 💾 | Artifact saved to disk |
 | ✅ | Check passed / stage complete |
 | ⚠️ | Warning: retry, empty result, degraded path |
+| 📡 | Cloud API unreachable — transport backoff before retry |
 | ❌ | Error / stage failed |
+| ⏸️ | Run paused (partial pass; resumable) |

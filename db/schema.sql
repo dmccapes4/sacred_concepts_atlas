@@ -84,6 +84,27 @@ CREATE VIEW IF NOT EXISTS page_concepts AS
   SELECT p.page_id, p.section_id, sc.concept_id, sc.weight, sc.run_id
   FROM pages p JOIN section_concepts sc ON sc.section_id = p.section_id;
 
+-- Phase 4: derived graph edges. Never agent-authored — the whole table is a
+-- materialization of section_concepts (+ sections for structural/temporal)
+-- and can be dropped and rebuilt at any time. run_id + method make edge sets
+-- diffable across signature runs and builder versions (see strategy §9).
+CREATE TABLE IF NOT EXISTS edges (
+  edge_id    INTEGER PRIMARY KEY,
+  kind       TEXT NOT NULL,        -- structural | temporal | conceptual |
+                                   -- co_occurrence | co_variance
+  src_type   TEXT NOT NULL,        -- section | concept
+  src_id     TEXT NOT NULL,
+  dst_type   TEXT NOT NULL,
+  dst_id     TEXT NOT NULL,
+  weight     REAL NOT NULL,
+  metadata   TEXT,                 -- JSON: shared concepts, PMI, r, n...
+  run_id     TEXT,                 -- signature run the edge derives from
+  method     TEXT                  -- versioned builder: "minsum_v1", "pmi_v1"
+);
+CREATE INDEX IF NOT EXISTS edges_kind_idx ON edges(kind, run_id, weight);
+CREATE INDEX IF NOT EXISTS edges_src_idx  ON edges(src_id, kind);
+CREATE INDEX IF NOT EXISTS edges_dst_idx  ON edges(dst_id, kind);
+
 CREATE TABLE IF NOT EXISTS runs (
   run_id       TEXT PRIMARY KEY,
   model        TEXT NOT NULL,

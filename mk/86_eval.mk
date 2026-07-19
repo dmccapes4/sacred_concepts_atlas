@@ -9,7 +9,10 @@
 
 WATCH ?= 0    # seconds between watchdog re-checks (0 = single shot)
 
-.PHONY: eval-harness watchdog agents-reset
+.PHONY: eval-harness watchdog agents-reset bias-harness
+
+bias-harness: ## GPT-vs-Grok bias probe battery + symmetric cross-examination
+	@$(PY) scripts/bias_harness.py --db $(DB)
 
 eval-harness: ## Pre-flight eval: dual isolated golden-section runs + checks
 	@$(PY) scripts/eval_harness.py --db $(DB) --model $(AGENT_MODEL) \

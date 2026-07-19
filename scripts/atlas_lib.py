@@ -6,6 +6,7 @@ import os
 import re
 import sqlite3
 import struct
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -13,7 +14,15 @@ import numpy as np
 import requests
 
 OLLAMA = "http://localhost:11434"
-OPENAI_URL = "https://api.openai.com/v1/chat/completions"
+
+# Cloud providers share the OpenAI chat-completions wire format; xAI's API is
+# OpenAI-compatible. Per-provider differences live in cloud_chat, not callers.
+CLOUD_PROVIDERS = {
+    "openai": {"url": "https://api.openai.com/v1/chat/completions",
+               "key_env": "OPENAI_API_KEY"},
+    "grok": {"url": "https://api.x.ai/v1/chat/completions",
+             "key_env": "SPACEXAI_API_KEY"},
+}
 
 
 def load_env(path=None):
@@ -29,27 +38,76 @@ def load_env(path=None):
         os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
 
-def openai_chat(model, system, user, *, temperature=0.3, seed=None, timeout=300):
-    """OpenAI chat completion in json_object mode (role prompts all say JSON).
+# Transport resilience for cloud calls. Overnight runs die to transient DNS/
+# connection blips and rate limits if attempts fire back-to-back (observed
+# twice: "Failed to resolve api.openai.com" burned all 3 caller attempts in
+# ~5 s). Backoff belongs here, in the transport layer: callers' MAX_ATTEMPTS
+# stay reserved for model-output problems (bad JSON, schema misses).
+NET_BACKOFF = [5, 15, 45, 90, 180, 300, 300]      # ~15.5 min tolerance per call
+RETRYABLE_STATUS = {429, 500, 502, 503, 504}      # rate limit / server-side
+
+
+def cloud_chat(provider, model, system, user, *, temperature=0.3, seed=None,
+               timeout=300, reasoning_effort=None):
+    """Cloud chat completion in json_object mode (role prompts all say JSON).
 
     Grammar-constrained decoding isn't available here the way Ollama's
     json_schema is; format safety comes from parse_json_response + the
-    caller's retry/semantic guards, same as the local path.
+    caller's retry/semantic guards, same as the local path. Network errors
+    and retryable HTTP statuses back off and retry here (NET_BACKOFF) before
+    surfacing to the caller.
+
+    Provider quirks: xAI's grok reasoning models reject some OpenAI sampler
+    params and don't document seed support, so the grok payload stays minimal
+    (model + messages + response_format) — determinism there rides on the
+    caller's retry guards only. grok-4.5 reasons at effort "high" by default
+    (~40s+ of thinking per call, billed as output tokens); we default it to
+    "low" — the latency/cost tier, and the closest match to gpt-4.1's
+    non-reasoning character for the cross-provider bias comparison.
     """
-    key = os.environ.get("OPENAI_API_KEY")
+    cfg = CLOUD_PROVIDERS[provider]
+    key = os.environ.get(cfg["key_env"])
     if not key:
-        raise RuntimeError("OPENAI_API_KEY not set — put it in .env")
+        raise RuntimeError(f"{cfg['key_env']} not set — put it in .env")
     payload = {"model": model,
                "messages": [{"role": "system", "content": system},
                             {"role": "user", "content": user}],
-               "temperature": temperature,
                "response_format": {"type": "json_object"}}
-    if seed is not None:
-        payload["seed"] = seed
-    r = requests.post(OPENAI_URL, json=payload, timeout=timeout,
-                      headers={"Authorization": f"Bearer {key}"})
-    r.raise_for_status()
-    return {"content": r.json()["choices"][0]["message"]["content"]}
+    if provider == "openai":
+        payload["temperature"] = temperature
+        if seed is not None:
+            payload["seed"] = seed
+    elif provider == "grok" and model.startswith("grok-4.5"):
+        # Only grok-4.5 supports the knob — grok-4.20-0309-reasoning 400s on
+        # it ("does not support parameter reasoningEffort"), non-reasoning
+        # models don't need it. Measured on the real classifier prompt:
+        # high (default) 41-47s, low 31s, same 5-assignment signature.
+        payload["reasoning_effort"] = reasoning_effort or "low"
+    last = None
+    for i, wait in enumerate([0] + NET_BACKOFF):
+        if wait:
+            say("📡", f"cloud API unreachable ({clip(last, 90)}) — "
+                f"retrying in {wait}s ({i}/{len(NET_BACKOFF)})", 2)
+            time.sleep(wait)
+        try:
+            r = requests.post(cfg["url"], json=payload, timeout=timeout,
+                              headers={"Authorization": f"Bearer {key}"})
+        except (requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout,
+                requests.exceptions.ChunkedEncodingError) as e:
+            # ConnectionError covers DNS failures and RST during send;
+            # ChunkedEncodingError is an RST mid-response (observed on long
+            # grok-4.5 generations) — same remedy, retry with backoff.
+            last = e
+            continue
+        if r.status_code in RETRYABLE_STATUS:
+            last = f"HTTP {r.status_code}: {r.text[:200]}"
+            continue
+        r.raise_for_status()   # non-retryable client errors surface immediately
+        return {"content": r.json()["choices"][0]["message"]["content"]}
+    raise RuntimeError(
+        f"{provider} API unreachable after {len(NET_BACKOFF)} backoff retries "
+        f"(~{sum(NET_BACKOFF) // 60} min): {last}")
 
 # ---------- console (see EMOJI_DICTIONARY.md) ----------
 
@@ -138,9 +196,37 @@ def replace_sections(con: sqlite3.Connection, source_id: str, rows: list[tuple])
 # ---------- embeddings ----------
 
 def embed_texts(texts: list[str], model: str) -> list[np.ndarray]:
-    r = requests.post(f"{OLLAMA}/api/embed", json={"model": model, "input": texts}, timeout=300)
-    r.raise_for_status()
-    return [np.asarray(e, dtype=np.float32) for e in r.json()["embeddings"]]
+    """Embed via local Ollama. Same backoff as cloud_chat: overnight runs
+    die to Ollama stalls (model unload, GPU contention) if a single timeout
+    is fatal — observed mid-pass on both Grok and GPT runs.
+
+    Timeout is short (60s): a healthy bge-m3 embed of a few strings returns
+    in <2s, so 60s already means Ollama is wedged. Better to fail fast and
+    retry through NET_BACKOFF than sit dark for 5 minutes per attempt.
+    """
+    if not texts:
+        return []
+    last = None
+    for i, wait in enumerate([0] + NET_BACKOFF):
+        if wait:
+            say("📡", f"ollama embed unreachable ({clip(last, 90)}) — "
+                f"retrying in {wait}s ({i}/{len(NET_BACKOFF)})", 2)
+            time.sleep(wait)
+        try:
+            r = requests.post(f"{OLLAMA}/api/embed",
+                              json={"model": model, "input": texts},
+                              timeout=60)
+            r.raise_for_status()
+            return [np.asarray(e, dtype=np.float32)
+                    for e in r.json()["embeddings"]]
+        except (requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout,
+                requests.exceptions.ChunkedEncodingError) as e:
+            last = e
+            continue
+    raise RuntimeError(
+        f"ollama embed unreachable after {len(NET_BACKOFF)} backoff retries "
+        f"(~{sum(NET_BACKOFF) // 60} min): {last}")
 
 
 def vec_to_blob(v: np.ndarray) -> bytes:

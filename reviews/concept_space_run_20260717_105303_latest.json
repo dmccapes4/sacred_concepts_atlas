@@ -1,22 +1,22 @@
 {
-  "exported_at": "2026-07-18T02:13:39Z",
+  "exported_at": "2026-07-18T02:14:10Z",
   "run": "run_20260717_105303",
   "model": "cloud:router=gpt-4.1-mini,classifier=gpt-4.1",
   "started_at": "2026-07-17 17:53:03",
   "order": "interleaved",
-  "signed": 1546,
+  "signed": 1548,
   "total": 2348,
-  "pct": 65.8,
-  "registry": 665,
+  "pct": 65.9,
+  "registry": 666,
   "tau": 0.852,
   "avgSigSize": 4.3,
   "avgMaxWeight": 0.398,
   "gate": {
-    "created": 665,
-    "rejected": 615
+    "created": 666,
+    "rejected": 616
   },
   "traditionSpan": {
-    "mono": 191,
+    "mono": 192,
     "cross2": 373,
     "cross3": 101
   },
@@ -24,14 +24,14 @@
     "2-5": 254,
     "21+": 78,
     "6-20": 220,
-    "once": 113
+    "once": 114
   },
   "byTradition": [
     {
       "tradition": "Christianity",
-      "signed": 658,
+      "signed": 659,
       "total": 1189,
-      "pct": 55.3
+      "pct": 55.4
     },
     {
       "tradition": "Islam",
@@ -41,9 +41,9 @@
     },
     {
       "tradition": "Judaism",
-      "signed": 658,
+      "signed": 659,
       "total": 929,
-      "pct": 70.8
+      "pct": 70.9
     }
   ],
   "sigSizeHist": [
@@ -53,11 +53,11 @@
     },
     {
       "label": "3",
-      "value": 264
+      "value": 265
     },
     {
       "label": "4",
-      "value": 561
+      "value": 562
     },
     {
       "label": "5",
@@ -128,16 +128,16 @@
       "avg": 0.199
     },
     {
+      "name": "righteousness contrasted with wickedness as life path",
+      "sections": 50,
+      "influence": 15.57,
+      "avg": 0.311
+    },
+    {
       "name": "divine judgment and expulsion from sacred space",
       "sections": 83,
       "influence": 15.38,
       "avg": 0.185
-    },
-    {
-      "name": "righteousness contrasted with wickedness as life path",
-      "sections": 49,
-      "influence": 15.32,
-      "avg": 0.313
     },
     {
       "name": "celebratory song of divine victory and salvation",
@@ -146,15 +146,15 @@
       "avg": 0.314
     },
     {
+      "name": "divine invitation to worship and praise",
+      "sections": 52,
+      "influence": 13.39,
+      "avg": 0.257
+    },
+    {
       "name": "prophetic confrontation of royal sin and divine retribution",
       "sections": 51,
       "influence": 12.9,
-      "avg": 0.253
-    },
-    {
-      "name": "divine invitation to worship and praise",
-      "sections": 51,
-      "influence": 12.89,
       "avg": 0.253
     },
     {
@@ -254,6 +254,10 @@
   ],
   "newest": [
     {
+      "name": "ideal virtuous woman as model of household and social strength",
+      "definition": "The concept of an exemplary woman whose virtues include industriousness, wisdom, generosity, and reverence for God, serving as a foundational model for family wellbeing and social respect. This figure is depicted as the cornerstone of household prosperity and is publicly praised "
+    },
+    {
       "name": "personification of wisdom as divine agent in creation",
       "definition": "Wisdom is portrayed as a preexistent, personal entity who is present with God before and during the creation of the world, acting as a craftsman and delighting in creation. This personified Wisdom calls out to humanity, offering life, favor, and guidance to those who embrace her."
     },
@@ -280,14 +284,14 @@
     {
       "name": "divine invitation to worship and praise",
       "definition": "An explicit divine invitation for communal worship expressed through singing, shouting, thanksgiving, and reverence, emphasizing God’s creative power and care for his people."
-    },
-    {
-      "name": "celebration of Zion as spiritual birthplace and source of life",
-      "definition": "The concept that Zion is portrayed as the sacred origin and spiritual birthplace of peoples, where divine favor establishes identity and life springs forth, celebrated with joy and communal affirmation."
     }
   ],
   "samples": {
     "Judaism": [
+      {
+        "ref": "Psalms 92",
+        "sig": "divine blessing as universal covenantal promise 0.10 · divine invitation to worship and praise 0.50 · righteousness contrasted with wickedness as life path 0.25 · the problem of the prosperity of the wicked 0.15"
+      },
       {
         "ref": "Psalms 91",
         "sig": "divine miraculous protection from physical harm 0.35 · divine protection against demonic interference 0.30 · divine protective shelter as eschatological refuge 0.35"
@@ -295,13 +299,13 @@
       {
         "ref": "Psalms 90",
         "sig": "desire for divine remembrance beyond death 0.10 · divine limitation of human lifespan 0.20 · divine mercy conditional on repentance and reform 0.15 · human mortality contrasted with natural renewal 0.35 · personal lament as plea for divine intervention 0.20"
-      },
-      {
-        "ref": "Psalms 89",
-        "sig": "covenant breach and consequences 0.30 · divine mercy conditional on repentance and reform 0.12 · divine promise of eternal royal dynasty 0.40 · royal lament as public mourning and teaching 0.18"
       }
     ],
     "Christianity": [
+      {
+        "ref": "Proverbs 31",
+        "sig": "divine ethical injunctions on social justice and family relations 0.20 · ideal virtuous woman as model of household and social strength 0.60 · wisdom teaching through paternal exhortation 0.20"
+      },
       {
         "ref": "Proverbs 30",
         "sig": "divine signs in natural phenomena as proof of God 0.38 · divine warning and moral responsibility 0.15 · wisdom as divine revelation beyond human reach 0.32 · wisdom critique of human arrogance before God 0.15"
@@ -309,10 +313,6 @@
       {
         "ref": "Proverbs 29",
         "sig": "divine warning and moral responsibility 0.15 · personal ethical self-examination and oath 0.08 · practical wisdom for personal financial and social responsibility 0.12 · righteous leadership as social protector and advocate 0.27 · righteousness contrasted with wickedness as life path 0.38"
-      },
-      {
-        "ref": "Proverbs 28",
-        "sig": "accusation of social injustice as source of divine judgment 0.15 · individual moral responsibility and intergenerational justice 0.10 · practical wisdom for personal financial and social responsibility 0.30 · righteousness contrasted with wickedness as life path 0.45"
       }
     ],
     "Islam": [
@@ -330,5 +330,5 @@
       }
     ]
   },
-  "lastRef": "Proverbs 30 (bible_en_web)"
+  "lastRef": "Proverbs 31 (bible_en_web)"
 }

@@ -9,9 +9,12 @@ Session context: a FIFO char bucket (PORTAL_CONTEXT_CHARS, default 12k) of
 prior exchanges (query + executive summary + cited refs). It is injected into
 the probe/gap/report stages; the evidence stage never sees it.
 
-Auth/keys: v1 uses OPENAI_API_KEY from .env (server-side). Client-supplied
-per-session keys would arrive via a header and need a per-request key
-override in atlas_lib.openai_chat — deliberately not implemented yet.
+Auth/keys: server-side keys from .env (OPENAI_API_KEY, SPACEXAI_API_KEY);
+the UI's model selector only offers providers whose key is present. Mid-
+session switches are logged as model_switch events in session_log.jsonl.
+Client-supplied per-session keys would arrive via a header and need a
+per-request key override in atlas_lib.cloud_chat — deliberately not
+implemented yet.
 
 Run:  make portal   (or: venv/bin/uvicorn portal.server:app --port 8877)
 """
@@ -44,6 +47,18 @@ MODEL = os.environ.get("PORTAL_MODEL", "atlas-conceptor")  # local fallback mode
 CONTEXT_CHAR_BUDGET = int(os.environ.get("PORTAL_CONTEXT_CHARS", "12000"))
 SESSIONS_DIR = ROOT / "sessions"
 
+# Providers the UI may offer: cloud providers whose API key is present, plus
+# the local Ollama stack. "local" maps to cloud=None in run_query.
+PROVIDERS = [p for p, env in (("openai", "OPENAI_API_KEY"),
+                              ("grok", "SPACEXAI_API_KEY"))
+             if os.environ.get(env)] + ["local"]
+DEFAULT_PROVIDER = os.environ.get(
+    "PORTAL_PROVIDER", PROVIDERS[0] if CLOUD and PROVIDERS[0] != "local" else "local")
+
+
+def provider_models(provider: str) -> dict:
+    return CLOUD_ROLE_MODELS[provider] if provider != "local" else {"all": MODEL}
+
 # One query at a time process-wide: embeddings share one Ollama, and the
 # portal is a single-operator tool for now.
 RUN_LOCK = threading.Lock()
@@ -57,10 +72,21 @@ class Session:
         self.log_path = self.dir / "session_log.jsonl"
         self.bucket: list[str] = []          # FIFO context entries
         self.n_exchanges = 0
+        self.provider = DEFAULT_PROVIDER
         self.log({"event": "session_start", "session_id": self.id,
-                  "cloud": CLOUD,
-                  "models": CLOUD_ROLE_MODELS if CLOUD else {"all": MODEL},
+                  "provider": self.provider,
+                  "models": provider_models(self.provider),
                   "db": DB, "context_char_budget": CONTEXT_CHAR_BUDGET})
+
+    def switch_provider(self, provider: str):
+        """Mid-session model switches are part of the record: the same context
+        answered by different models is exactly the bias-comparison data."""
+        if provider == self.provider:
+            return
+        self.log({"event": "model_switch", "from": self.provider,
+                  "to": provider, "models": provider_models(provider),
+                  "after_exchanges": self.n_exchanges})
+        self.provider = provider
 
     def log(self, obj: dict):
         obj["ts"] = now_iso()
@@ -114,6 +140,7 @@ def corpus_stats() -> dict:
 class QueryBody(BaseModel):
     session_id: str
     query: str
+    model: str | None = None       # provider choice: "openai" | "grok" | "local"
 
 
 def get_session(sid: str) -> Session:
@@ -127,8 +154,9 @@ def get_session(sid: str) -> Session:
 def new_session():
     s = Session()
     SESSIONS[s.id] = s
-    return {"session_id": s.id, "cloud": CLOUD,
-            "models": CLOUD_ROLE_MODELS if CLOUD else {"all": MODEL},
+    return {"session_id": s.id, "provider": s.provider,
+            "providers": {p: provider_models(p) for p in PROVIDERS},
+            "models": provider_models(s.provider),
             "context_char_budget": CONTEXT_CHAR_BUDGET, **corpus_stats()}
 
 
@@ -154,24 +182,31 @@ def query(body: QueryBody):
     q = body.query.strip()
     if not q:
         raise HTTPException(400, "empty query")
+    if body.model:
+        if body.model not in PROVIDERS:
+            raise HTTPException(400, f"unknown model provider {body.model!r} "
+                                     f"(available: {', '.join(PROVIDERS)})")
+        s.switch_provider(body.model)
     if not RUN_LOCK.acquire(blocking=False):
         raise HTTPException(429, "a query is already running — wait for it to finish")
     t0 = time.time()
     try:
         ctx = s.context()
         s.log({"event": "user_query", "query": q,
+               "provider": s.provider,
                "context_chars_sent": len(ctx),
                "context_exchanges": len(s.bucket)})
-        say("🌐", f"[portal {s.id}] query: {q}")
+        say("🌐", f"[portal {s.id}] query ({s.provider}): {q}")
         try:
-            result = run_query(q, db=DB, model=MODEL, cloud=CLOUD,
+            result = run_query(q, db=DB, model=MODEL,
+                               cloud=None if s.provider == "local" else s.provider,
                                out_dir=str(s.dir / "queries"),
                                session_context=ctx)
         except Exception as e:
             s.log({"event": "error", "query": q, "error": str(e)[:800]})
             raise HTTPException(502, f"pipeline failed: {e}")
         summary = result["report"].get("executive_summary", "")
-        s.log({"event": "report", "query": q,
+        s.log({"event": "report", "query": q, "provider": s.provider,
                "report_md": result["report_md"],
                "executive_summary": summary,
                "evidence_summary": result["evidence"].get("summary", ""),
@@ -182,6 +217,7 @@ def query(body: QueryBody):
         s.push_exchange(q, summary, result["referenced_pages"])
         return {"report_md": result["report_md"],
                 "referenced_pages": result["referenced_pages"],
+                "provider": s.provider,
                 "elapsed_s": result["elapsed_s"],
                 "context_chars": s.context_chars(),
                 "context_char_budget": CONTEXT_CHAR_BUDGET,

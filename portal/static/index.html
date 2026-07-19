@@ -33,6 +33,12 @@
   }
   button:hover { border-color: var(--gold-dim); color: var(--gold); }
   button:disabled { opacity: .45; cursor: default; }
+  select {
+    background: var(--panel2); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 6px; padding: 6px 10px; font: inherit; font-size: 13px;
+    cursor: pointer;
+  }
+  select:hover { border-color: var(--gold-dim); }
   #meta {
     padding: 6px 22px; font-size: 12px; color: var(--dim);
     border-bottom: 1px solid var(--line); display: flex; gap: 18px; flex-wrap: wrap;
@@ -85,6 +91,7 @@
   <h1>SACRED CONCEPTS ATLAS</h1>
   <span class="sub">Tanakh · Bible · Quran — cross-tradition query portal</span>
   <span class="spacer"></span>
+  <select id="modelSel" title="Agent models for the next query (switches are logged)"></select>
   <button id="exportBtn" title="Download session_log.jsonl">Export session</button>
   <button id="clearBtn" title="Wipe context and start fresh">New session</button>
 </header>
@@ -163,14 +170,36 @@ async function api(path, opts) {
   return r.json();
 }
 
-async function newSession(s) {
-  if (!s) s = await api("/api/session", { method: "POST" });
-  SID = s.session_id;
-  const models = Object.entries(s.models).map(([k, v]) => `${k}=${v}`).join(" · ");
+const PROVIDER_LABELS = { openai: "GPT-4.1 (OpenAI)", grok: "Grok 4.5 (xAI)", local: "Local (Ollama)" };
+let PROVIDERS = {};
+
+function providerAgents(p) {
+  return Object.entries(PROVIDERS[p] || {}).map(([k, v]) => `${k}=${v}`).join(" · ");
+}
+
+function updateMeta(s) {
+  const p = $("modelSel").value;
   const sigs = s.signed_sections ? ` · ${s.signed_sections.toLocaleString()} sections carry concept signatures` : "";
   $("meta").textContent =
     `session ${s.session_id} · ${s.pages.toLocaleString()} pages across ` +
-    `${s.sources.length} sources${sigs} · agents: ${models}`;
+    `${s.sources.length} sources${sigs} · agents: ${providerAgents(p)}`;
+}
+
+async function newSession(s) {
+  if (!s) s = await api("/api/session", { method: "POST" });
+  SID = s.session_id;
+  PROVIDERS = s.providers || { [s.provider]: s.models };
+  const sel = $("modelSel");
+  sel.innerHTML = "";
+  for (const p of Object.keys(PROVIDERS)) {
+    const opt = document.createElement("option");
+    opt.value = p;
+    opt.textContent = PROVIDER_LABELS[p] || p;
+    sel.appendChild(opt);
+  }
+  sel.value = s.provider;
+  sel.onchange = () => updateMeta(s);   // switch is logged server-side on next query
+  updateMeta(s);
   $("chat").innerHTML = "";
   setCtx(0, s.context_char_budget);
   addMsg("atlas", "atlas",
@@ -191,12 +220,13 @@ async function ask() {
     const r = await api("/api/query", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: SID, query: q }),
+      body: JSON.stringify({ session_id: SID, query: q, model: $("modelSel").value }),
     });
     th.remove();
     const m = addMsg("atlas", "atlas", '<div class="report">' + renderMd(r.report_md) + "</div>");
     m.querySelector(".bubble").insertAdjacentHTML("beforeend",
-      `<div class="time">answered in ${Math.round(r.elapsed_s)}s · exchange ${r.exchanges}</div>`);
+      `<div class="time">answered in ${Math.round(r.elapsed_s)}s · exchange ${r.exchanges}` +
+      ` · ${PROVIDER_LABELS[r.provider] || r.provider}</div>`);
     setCtx(r.context_chars, r.context_char_budget);
   } catch (e) {
     th.remove();

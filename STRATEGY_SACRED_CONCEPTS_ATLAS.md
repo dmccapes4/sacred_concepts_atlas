@@ -832,15 +832,101 @@ goal is finishing the atlas, not a controlled local reading). Est. ~$50–60 for
 remaining sections; sequential wall clock ~6–8h vs ~40h on the 3060. Parallel
 section workers are deferred (shared registry needs commit locking).
 
+### Grok (xAI) as a second cloud provider (added 2026-07-17)
+
+`--cloud` now takes a provider: `--cloud openai` (default, bare `--cloud`
+unchanged) or `--cloud grok`; Makefile-side `PROVIDER=grok` on `agent-run`,
+`agent-resume`, and `query`. Purpose: a third concept space for the
+model-interpretive-bias research (qwen3 local, GPT-4.1, Grok) — different
+labs, different RLHF regimes, same corpus, same prompts, same invariants.
+
+**Model split** (xAI lineup as of 2026-07: grok-4.5 flagship 500k ctx $2/$6
+per Mtok; grok-4.20 reasoning/non-reasoning 1M ctx $1.25/$2.50; no
+mini-class budget tier exists):
+
+| job | model | why |
+|---|---|---|
+| ingest router | grok-4.20-0309-non-reasoning | wide-recall screening; cheapest capable tier |
+| ingest classifier | grok-4.5 @ reasoning_effort=low | the interpretive organ gets the flagship; low is the token-efficient reasoning tier |
+| query probe | grok-4.20-0309-non-reasoning | small planning task |
+| query gap / report / evidence | grok-4.5 @ reasoning_effort=low | long-context reasoning, the writer's voice, verbatim-quote fidelity |
+
+**Reasoning-effort measurements** (real Genesis-1 classifier prompt,
+2026-07-17): grok-4.5's reasoning cannot be disabled; default is high.
+high ran 41–47s (~2.1k hidden reasoning tokens, billed as output), low ran
+31s (~1.5k) with the *same* 5-assignment sum-1.00 signature; medium was
+slowest (52s) with no visible gain. grok-4.20-0309-reasoning rejects the
+effort knob (HTTP 400); grok-4.20-0309-non-reasoning answers in 9s and was
+briefly adopted as the classifier for speed, then reverted by operator call:
+**quality and token efficiency outrank wall clock** — overnight is overnight,
+and the flagship's reading is the point of the Grok concept space.
+`cloud_chat` pins `reasoning_effort=low` on every grok-4.5 call
+automatically, and only on 4.5 (other grok models error on the parameter).
+
+**Cost** (full 2,348-section pass, $100 credit budget): router ~21M in /
+1.2M out ≈ $29; classifier ~12M in / ~5M out (incl. reasoning) ≈ $55 →
+**~$85 total**, ~31s/section → ~21h wall clock. Queries cost cents each;
+~$10–15 of headroom remains for the Grok-side query/framing-diff experiments.
+
+**ETA robustness**: the ingestion ETA projects from a rolling *median* of
+the last 60 section durations, and sections slower than 4× the median
+(network-backoff stalls) are counted and displayed but never enter the
+estimate — one rare 10-minute DNS stall says nothing about future
+throughput, so it must not drag the projection the way a straight mean
+would. If stalls become frequent, the median itself degrades and the ETA
+honestly reflects it.
+
+**Mechanics.** xAI's API is OpenAI-compatible; `atlas_lib.cloud_chat`
+dispatches on a provider table (URL + key env var: `OPENAI_API_KEY`,
+`SPACEXAI_API_KEY`). The grok payload is minimal — model, messages,
+`response_format: json_object` — because grok reasoning models reject some
+OpenAI sampler params and seed support is undocumented; determinism rides on
+the retry guards alone. **No separate context management needed**: grok-4.5's
+500k context dwarfs our ×3 char budgets, which stay identical across
+providers on purpose — the bias comparison must not be confounded by
+different context sizes. Embeddings and retrieval stay local as always.
+
+**Fresh concept space required** (`make db-fork` → `db/atlas_grok.db`): the
+`Registry` loads every active concept regardless of `run_id`, so a Grok run
+on the main DB would inherit the GPT-4.1 vocabulary instead of minting its
+own — exactly the signal the open-registry bias design needs. Fork copies
+the DB, keeps sections/pages/embeddings, wipes `concepts` /
+`section_concepts` / `runs`. Overnight recipe:
+
+```
+make db-fork
+make agent-run DB=db/atlas_grok.db PROVIDER=grok
+```
+
+**Portal**: a model selector (GPT-4.1 / Grok 4.5 / local, offered per
+available API key) rides each query; mid-session switches append a
+`model_switch` event to `session_log.jsonl` — the same session context
+answered by different models is bias-comparison data, so it is part of the
+record, not a config change.
+
 ---
 
 ## 9. Concept graph edges — connascence taxonomy (Phase 4, refined 2026-07-16)
 
-**Status: designed, blocked.** Every edge type below except structural and
-temporal is a pure function of the concept space (`section_concepts` +
-`concepts`), so `scripts/build_edges.py` cannot run until the Phase 3
-ingestion pass completes. This section fixes the design now so the ingestion
-run's outputs are known-sufficient inputs.
+**Status: BUILT (2026-07-18)** — `scripts/build_edges.py` + `mk/87_graph.mk`,
+first materialization on the completed GPT-4.1 run (`run_20260717_105303`):
+25,229 edges in ~2 s (structural 3,057 · temporal 2,345 · conceptual 18,539
+at cutoff 0.35 · co-occurrence 1,092 at NPMI≥0.10/count≥3 · co-variance 196
+at |r|≥0.40/joint≥5). The build is pure SQL/numpy — no LLM, no Ollama, no
+embeddings — so it can run alongside a live ingestion on another DB file.
+Edges are keyed by `run_id` + `method`, so the Grok and Qwen runs will get
+their own diffable edge sets from the same builder.
+
+One discovery-queue refinement earned during the first build: ranking by
+source *tradition* misleads — Tanakh↔WEB-OT pairs are "cross-tradition"
+(Judaism vs Christianity) but the same scripture in two languages. The queue
+now ranks by **scripture family** (quran / hebrew_bible / new_testament) and
+dedupes language twins (Job(he)↔X and Job(en)↔X are one finding). First
+queue (top 150, all cross-family): 102 hebrew_bible↔quran, 40
+hebrew_bible↔new_testament, 8 new_testament↔quran — including Luke 1 ↔
+Maryam 19 (both annunciations, found blind from signatures alone) as a
+face-validity anchor, and 2 Cor 1 ↔ Ash-Sharh/Ad-Dhuhaa ("divine consolation
+of the prophet") as the uncatalogued kind the queue exists to surface.
 
 ### 9.1 Two node types, five edge kinds
 
@@ -925,10 +1011,11 @@ Human review of the top-N is the Phase 4 eval.
 
 ```
 Phase 0-2  retrieval infrastructure     ✅ done (fetch, ingest, pages, FTS, embeddings)
-Phase 3    concept space ingestion      ⏳ next: ~29 h full pass on the 3060
-Phase 4    edge materialization         🚧 blocked on Phase 3 (this section)
-Phase 4+   discovery queue review,      🚧 blocked on Phase 4
-           GraphML export, exploration
+Phase 3    concept space ingestion      ✅ GPT-4.1 complete (2,348/2,348, 806 concepts)
+                                        ⏳ Grok resuming on 82; Qwen3 running on 245
+Phase 4    edge materialization         ✅ built + first run (make graph / graph-stats)
+Phase 4+   discovery queue review       ⏳ artifacts/atlas/graph/discovery_queue.md
+           GraphML export               ✅ make graph-export (Gephi/networkx)
 ```
 
 The dependency is real, not incidental: a half-ingested corpus would produce

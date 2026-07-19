@@ -63,4 +63,5 @@ clean-raw: ## Remove all fetched artifacts
 -include mk/80_embeddings.mk
 -include mk/85_agents.mk
 -include mk/86_eval.mk
+-include mk/87_graph.mk
 -include mk/90_validate.mk

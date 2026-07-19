@@ -12,9 +12,11 @@ TAU_K    ?= 150
 LIMIT    ?= 0        # 0 = all remaining sections
 ORDER    ?= interleaved   # interleaved (fairness prior) | temporal (Tanakh->Bible->Quran lineage prior)
 CLOUD    ?=            # CLOUD=1 -> OpenAI agents (OPENAI_API_KEY in .env)
+PROVIDER ?=            # PROVIDER=grok|openai -> cloud agents on that provider (overrides CLOUD)
 ROUTER_MODEL ?=        # optional split: ROUTER_MODEL=atlas-router AGENT_MODEL=atlas-classifier (4090)
+CLOUD_FLAG = $(if $(PROVIDER),--cloud $(PROVIDER),$(if $(CLOUD),--cloud))
 
-.PHONY: agent-modelfile agent-modelfiles agent-run agent-resume concepts-export concepts-stats concept-space-export
+.PHONY: agent-modelfile agent-modelfiles agent-run agent-resume db-fork concepts-export concepts-stats concept-space-export
 
 agent-modelfile: ## Build the single-model Ollama agent (3060 config)
 	@ollama create $(AGENT_MODEL) -f modelfiles/atlas-conceptor.Modelfile
@@ -23,17 +25,30 @@ agent-modelfiles: ## Build the dual-model pair (4090 config: atlas-router + atla
 	@ollama create atlas-router -f modelfiles/atlas-router.Modelfile
 	@ollama create atlas-classifier -f modelfiles/atlas-classifier.Modelfile
 
-agent-run: ## Full concept-extraction pass (new run_id; CLOUD=1 for OpenAI)
+agent-run: ## Full concept-extraction pass (new run_id; CLOUD=1 or PROVIDER=grok for cloud)
 	@$(PY) scripts/agent_conceptor.py --db $(DB) --model $(AGENT_MODEL) \
 		--embed-model $(EMBED_MODEL) \
 		--tau0 $(TAU_0) --tau-max $(TAU_MAX) --tau-k $(TAU_K) \
-		--order $(ORDER) --limit $(LIMIT) $(if $(CLOUD),--cloud) \
+		--order $(ORDER) --limit $(LIMIT) $(CLOUD_FLAG) \
 		$(if $(ROUTER_MODEL),--router-model $(ROUTER_MODEL))
 
-agent-resume: ## Resume most recent unfinished run (CLOUD=1 switches agents to OpenAI)
+agent-resume: ## Resume most recent unfinished run (CLOUD=1 or PROVIDER=grok for cloud)
 	@$(PY) scripts/agent_conceptor.py --db $(DB) --model $(AGENT_MODEL) \
-		--embed-model $(EMBED_MODEL) --resume $(if $(CLOUD),--cloud) \
+		--embed-model $(EMBED_MODEL) --resume $(CLOUD_FLAG) \
 		$(if $(ROUTER_MODEL),--router-model $(ROUTER_MODEL))
+
+# Open-registry model-bias runs need their own concept space: the Registry
+# loads every active concept regardless of run_id, so a second model run on
+# the same DB would inherit the first model's vocabulary instead of minting
+# its own. Fork keeps sections/pages/embeddings, wipes concept state.
+db-fork: ## Copy DB to NEW= (default db/atlas_grok.db) with an empty concept space
+	@NEW="$(or $(NEW),db/atlas_grok.db)"
+	@cp $(DB) "$$NEW"
+	@$(PY) scripts/sql.py "$$NEW" "DELETE FROM section_concepts;"
+	@$(PY) scripts/sql.py "$$NEW" "DELETE FROM concepts;"
+	@$(PY) scripts/sql.py "$$NEW" "DELETE FROM runs;"
+	@echo "forked $(DB) -> $$NEW (concept space wiped; pages/embeddings kept)"
+	@echo "run:  make agent-run DB=$$NEW PROVIDER=grok"
 concepts-export: ## Export concept registry to JSON (browsable hash view)
 	@$(SQL) --json "SELECT concept_id, name, definition, created_by, status FROM concepts ORDER BY created_at;" > concepts.json
 	@echo "wrote concepts.json"
