@@ -10,6 +10,7 @@
     --ink: #e8e2d9; --dim: #9a917f; --line: #38322c;
     --gold: #c9a95c; --gold-dim: #8a744a;
     --user: #2a3140; --err: #7a3030;
+    --jud: #6ea8c9; --chr: #c9a95c; --isl: #7bb287;
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
@@ -19,242 +20,443 @@
     display: flex; flex-direction: column;
   }
   header {
-    display: flex; align-items: baseline; gap: 14px;
-    padding: 14px 22px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 14px;
+    padding: 12px 22px; border-bottom: 1px solid var(--line);
     background: var(--panel);
   }
   header h1 { font-size: 18px; margin: 0; font-weight: normal; letter-spacing: .06em; color: var(--gold); }
   header .sub { color: var(--dim); font-size: 12.5px; }
   header .spacer { flex: 1; }
+  nav { display: flex; gap: 4px; }
+  nav button.tab {
+    border-radius: 6px 6px 0 0; border-bottom: none; padding: 7px 16px;
+    font-size: 13px; letter-spacing: .04em;
+  }
+  nav button.tab.active { background: var(--bg); color: var(--gold); border-color: var(--gold-dim); }
   button {
     background: var(--panel2); color: var(--ink); border: 1px solid var(--line);
-    border-radius: 6px; padding: 6px 14px; font: inherit; font-size: 13px;
-    cursor: pointer;
+    border-radius: 6px; padding: 6px 14px; font: inherit; font-size: 13px; cursor: pointer;
   }
   button:hover { border-color: var(--gold-dim); color: var(--gold); }
   button:disabled { opacity: .45; cursor: default; }
   select {
     background: var(--panel2); color: var(--ink); border: 1px solid var(--line);
-    border-radius: 6px; padding: 6px 10px; font: inherit; font-size: 13px;
-    cursor: pointer;
+    border-radius: 6px; padding: 6px 10px; font: inherit; font-size: 13px; cursor: pointer;
   }
   select:hover { border-color: var(--gold-dim); }
-  #meta {
-    padding: 6px 22px; font-size: 12px; color: var(--dim);
-    border-bottom: 1px solid var(--line); display: flex; gap: 18px; flex-wrap: wrap;
-  }
+  #meta { padding: 6px 22px; font-size: 12px; color: var(--dim);
+    border-bottom: 1px solid var(--line); display: flex; gap: 18px; flex-wrap: wrap; }
+  .view { flex: 1; min-height: 0; display: none; flex-direction: column; }
+  .view.active { display: flex; }
+
+  /* ---------- Query view ---------- */
   #chat { flex: 1; overflow-y: auto; padding: 20px 0 30px; }
   .msg { max-width: 880px; margin: 0 auto 16px; padding: 0 22px; }
-  .msg .bubble {
-    border-radius: 10px; padding: 12px 16px; border: 1px solid var(--line);
-    overflow-wrap: break-word;
-  }
+  .msg .bubble { border-radius: 10px; padding: 12px 16px; border: 1px solid var(--line); overflow-wrap: break-word; }
   .msg.user .bubble { background: var(--user); border-color: #3c4a63; }
   .msg.user .who { color: #93a8c9; }
   .msg.atlas .bubble { background: var(--panel); }
   .msg.error .bubble { background: var(--err); }
-  .msg .who {
-    font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
-    color: var(--gold-dim); margin-bottom: 4px;
-  }
+  .msg .who { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--gold-dim); margin-bottom: 4px; }
   .msg .time { color: var(--dim); font-size: 11.5px; margin-top: 6px; }
   .report h1 { font-size: 19px; color: var(--gold); }
   .report h2 { font-size: 16px; color: var(--gold); border-bottom: 1px solid var(--line); padding-bottom: 3px; margin-top: 20px; }
-  .report code {
-    font: 12.5px/1.4 ui-monospace, Menlo, monospace;
-    background: var(--panel2); padding: 1px 5px; border-radius: 4px; color: #b8c4a9;
-  }
+  .report code { font: 12.5px/1.4 ui-monospace, Menlo, monospace; background: var(--panel2); padding: 1px 5px; border-radius: 4px; color: #b8c4a9; }
   .report blockquote { border-left: 3px solid var(--gold-dim); margin: 8px 0; padding: 2px 12px; color: var(--dim); }
   .report hr { border: none; border-top: 1px solid var(--line); margin: 18px 0; }
   .report ul { padding-left: 22px; }
   .report em { color: var(--dim); }
+  .signalbox { margin-top: 10px; border: 1px dashed var(--gold-dim); border-radius: 8px; padding: 8px 12px; font-size: 12.5px; }
+  .signalbox .lbl { color: var(--gold); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+  .signalbox .row { color: var(--dim); }
+  .signalbox .kept { color: var(--isl); }
   .thinking { color: var(--dim); font-style: italic; }
   .thinking .dots::after { content: ''; animation: dots 1.6s steps(4) infinite; }
   @keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
-  footer {
-    border-top: 1px solid var(--line); background: var(--panel); padding: 14px 22px;
-  }
+  footer { border-top: 1px solid var(--line); background: var(--panel); padding: 14px 22px; }
   #inputRow { max-width: 880px; margin: 0 auto; display: flex; gap: 10px; }
-  #q {
-    flex: 1; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
-    color: var(--ink); font: inherit; padding: 10px 14px; resize: none; min-height: 44px; max-height: 160px;
-  }
+  #q { flex: 1; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+    color: var(--ink); font: inherit; padding: 10px 14px; resize: none; min-height: 44px; max-height: 160px; }
   #q:focus { outline: none; border-color: var(--gold-dim); }
-  #send { padding: 6px 22px; }
   #ctxbar { max-width: 880px; margin: 6px auto 0; font-size: 11.5px; color: var(--dim); }
   #ctxfill { height: 3px; background: var(--gold-dim); border-radius: 2px; width: 0%; transition: width .4s; }
   #ctxtrack { height: 3px; background: var(--panel2); border-radius: 2px; margin-top: 3px; }
+
+  /* ---------- Concept search view ---------- */
+  #searchWrap { flex: 1; overflow-y: auto; padding: 20px 22px 40px; }
+  .col { max-width: 920px; margin: 0 auto; }
+  #searchText { width: 100%; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+    color: var(--ink); font: inherit; padding: 12px 14px; resize: vertical; min-height: 90px; }
+  #searchText:focus { outline: none; border-color: var(--gold-dim); }
+  .searchbar { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+  .hint { color: var(--dim); font-size: 12.5px; }
+  .sigchips { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+  .chip { background: var(--panel2); border: 1px solid var(--gold-dim); border-radius: 20px;
+    padding: 5px 13px; font-size: 12.5px; color: var(--gold); cursor: pointer; }
+  .chip .w { color: var(--dim); font-size: 11px; margin-left: 5px; }
+  .chip:hover { background: var(--panel); }
+  .card { border: 1px solid var(--line); border-radius: 8px; margin-bottom: 8px; background: var(--panel); overflow: hidden; }
+  .card summary { list-style: none; cursor: pointer; padding: 11px 15px; display: flex; align-items: center; gap: 12px; }
+  .card summary::-webkit-details-marker { display: none; }
+  .card summary:hover { background: var(--panel2); }
+  .card .rank { color: var(--dim); font-size: 12px; min-width: 26px; }
+  .card .trad { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .card .title { flex: 1; color: var(--ink); }
+  .card .title .src { color: var(--dim); font-size: 12px; margin-left: 8px; }
+  .card .score { color: var(--gold); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .card .body { padding: 4px 15px 14px 15px; border-top: 1px solid var(--line); }
+  .card .matched { font-size: 12.5px; color: var(--dim); margin: 8px 0; }
+  .card .matched b { color: var(--gold); font-weight: normal; }
+  .card .preview { font-size: 13.5px; color: var(--ink); white-space: pre-wrap; max-height: 220px; overflow-y: auto;
+    border-left: 2px solid var(--line); padding-left: 12px; margin-top: 8px; }
+  .card .actions { margin-top: 10px; }
+  .trad-Judaism { background: var(--jud); } .trad-Christianity { background: var(--chr); } .trad-Islam { background: var(--isl); }
+
+  /* ---------- Graph view ---------- */
+  #graphWrap { flex: 1; display: flex; min-height: 0; }
+  #graphSvg { flex: 1; background: radial-gradient(circle at 50% 45%, #17140f, #100e0c); }
+  #graphSide { width: 300px; border-left: 1px solid var(--line); background: var(--panel); padding: 16px; overflow-y: auto; font-size: 13px; }
+  #graphSide h3 { color: var(--gold); font-weight: normal; margin: 0 0 4px; font-size: 15px; }
+  #graphSide .def { color: var(--dim); font-size: 12.5px; margin: 8px 0; }
+  #graphSide .seedlist { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  #graphSide .seed { font-size: 11.5px; padding: 3px 9px; border-radius: 14px; }
+  .gnode { cursor: pointer; }
+  .gnode text { font: 12px Georgia, serif; fill: var(--ink); pointer-events: none; }
+  .gnode:hover circle { stroke: var(--gold); stroke-width: 2; }
+  .gedge { stroke: var(--gold-dim); opacity: .5; }
+  .gedge-label { font: 10px ui-monospace, monospace; fill: var(--dim); pointer-events: none; }
+  .center circle { stroke: var(--gold); stroke-width: 2.5; }
 </style>
 </head>
 <body>
 <header>
   <h1>SACRED CONCEPTS ATLAS</h1>
-  <span class="sub">Tanakh · Bible · Quran — cross-tradition query portal</span>
+  <span class="sub">Tanakh · Bible · Quran</span>
+  <span class="spacer"></span>
+  <nav>
+    <button class="tab active" data-view="query">Query</button>
+    <button class="tab" data-view="search">Concept Search</button>
+    <button class="tab" data-view="graph">Graph</button>
+  </nav>
   <span class="spacer"></span>
   <select id="modelSel" title="Agent models for the next query (switches are logged)"></select>
-  <button id="exportBtn" title="Download session_log.jsonl">Export session</button>
+  <button id="exportBtn" title="Download session_log.jsonl">Export</button>
   <button id="clearBtn" title="Wipe context and start fresh">New session</button>
 </header>
 <div id="meta">connecting…</div>
-<div id="chat"></div>
-<footer>
-  <div id="inputRow">
-    <textarea id="q" rows="1" placeholder="Ask across the three traditions… (Enter to send, Shift+Enter for newline)"></textarea>
-    <button id="send">Ask</button>
+
+<!-- ============ QUERY VIEW ============ -->
+<section class="view active" id="view-query">
+  <div id="chat"></div>
+  <footer>
+    <div id="inputRow">
+      <textarea id="q" rows="1" placeholder="Ask across the three traditions… (Enter to send, Shift+Enter for newline)"></textarea>
+      <button id="send">Ask</button>
+    </div>
+    <div id="ctxbar">
+      <span id="ctxlabel">session context: 0 chars</span>
+      <div id="ctxtrack"><div id="ctxfill"></div></div>
+    </div>
+  </footer>
+</section>
+
+<!-- ============ CONCEPT SEARCH VIEW ============ -->
+<section class="view" id="view-search">
+  <div id="searchWrap">
+    <div class="col">
+      <p class="hint">Paste text — a sentence or a thousand words. It is classified into a
+      <b>concept signature</b> (the corpus's own vocabulary), and chapters are ranked by how
+      closely their signature matches. Read-only; nothing is added to the concept space.</p>
+      <textarea id="searchText" placeholder="e.g. A leader chosen by God who feels unworthy and tries to refuse the calling, pleading his own weakness…"></textarea>
+      <div class="searchbar">
+        <button id="searchBtn">Classify &amp; find chapters</button>
+        <span class="hint" id="searchStatus"></span>
+      </div>
+      <div class="sigchips" id="sigchips"></div>
+      <div id="searchResults"></div>
+    </div>
   </div>
-  <div id="ctxbar">
-    <span id="ctxlabel">session context: 0 chars</span>
-    <div id="ctxtrack"><div id="ctxfill"></div></div>
+</section>
+
+<!-- ============ GRAPH VIEW ============ -->
+<section class="view" id="view-graph">
+  <div id="graphWrap">
+    <svg id="graphSvg"></svg>
+    <div id="graphSide">
+      <h3 id="gTitle">Concept graph</h3>
+      <div class="def" id="gDef">Click a starting concept, or center a chapter from Concept Search / Query. Click any neighbor to re-center.</div>
+      <div id="gMeta"></div>
+      <div style="margin-top:14px"><label class="hint">edge kinds</label><br>
+        <select id="gKinds" style="margin-top:5px; width:100%"></select>
+      </div>
+      <div style="margin-top:16px"><span class="hint">start from a hub concept:</span>
+        <div class="seedlist" id="gSeeds"></div>
+      </div>
+    </div>
   </div>
-</footer>
+</section>
 
 <script>
 "use strict";
 const $ = id => document.getElementById(id);
 let SID = null, BUSY = false, BUDGET = 12000;
+const TRAD = { Judaism: "trad-Judaism", Christianity: "trad-Christianity", Islam: "trad-Islam" };
 
-// --- minimal markdown renderer (headers, bold, italics, code, quotes, lists, hr)
-function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
-function inline(s) {
-  return s
-    .replace(/`([^`]+)`/g, (_, c) => "<code>" + c + "</code>")
-    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/_([^_]+)_/g, "<em>$1</em>");
-}
-function renderMd(md) {
-  const out = [];
-  let inList = false;
-  for (const raw of md.split("\n")) {
-    const line = esc(raw);
-    const li = line.match(/^\s*[-*]\s+(.*)/);
-    if (li) {
-      if (!inList) { out.push("<ul>"); inList = true; }
-      out.push("<li>" + inline(li[1]) + "</li>");
-      continue;
-    }
-    if (inList) { out.push("</ul>"); inList = false; }
-    if (/^---+\s*$/.test(line)) { out.push("<hr>"); continue; }
-    const h = line.match(/^(#{1,4})\s+(.*)/);
-    if (h) { const n = Math.min(h[1].length, 4); out.push(`<h${n}>` + inline(h[2]) + `</h${n}>`); continue; }
-    const bq = line.match(/^&gt;\s?(.*)/);
-    if (bq) { out.push("<blockquote>" + inline(bq[1]) + "</blockquote>"); continue; }
-    if (line.trim() === "") { out.push(""); continue; }
-    out.push("<p>" + inline(line) + "</p>");
+/* ---------- markdown ---------- */
+function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function inline(s){return s.replace(/`([^`]+)`/g,(_,c)=>"<code>"+c+"</code>").replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>").replace(/_([^_]+)_/g,"<em>$1</em>");}
+function renderMd(md){
+  const out=[]; let inList=false;
+  for(const raw of md.split("\n")){
+    const line=esc(raw); const li=line.match(/^\s*[-*]\s+(.*)/);
+    if(li){ if(!inList){out.push("<ul>");inList=true;} out.push("<li>"+inline(li[1])+"</li>"); continue; }
+    if(inList){out.push("</ul>");inList=false;}
+    if(/^---+\s*$/.test(line)){out.push("<hr>");continue;}
+    const h=line.match(/^(#{1,4})\s+(.*)/);
+    if(h){const n=Math.min(h[1].length,4);out.push(`<h${n}>`+inline(h[2])+`</h${n}>`);continue;}
+    const bq=line.match(/^&gt;\s?(.*)/);
+    if(bq){out.push("<blockquote>"+inline(bq[1])+"</blockquote>");continue;}
+    if(line.trim()===""){out.push("");continue;}
+    out.push("<p>"+inline(line)+"</p>");
   }
-  if (inList) out.push("</ul>");
+  if(inList)out.push("</ul>");
   return out.join("\n");
 }
-
-function addMsg(cls, who, html) {
-  const div = document.createElement("div");
-  div.className = "msg " + cls;
-  div.innerHTML = `<div class="who">${who}</div><div class="bubble">${html}</div>`;
-  $("chat").appendChild(div);
-  $("chat").scrollTop = $("chat").scrollHeight;
-  return div;
-}
-
-function setCtx(chars, budget) {
-  BUDGET = budget || BUDGET;
-  $("ctxlabel").textContent = `session context: ${chars.toLocaleString()} / ${BUDGET.toLocaleString()} chars (FIFO)`;
-  $("ctxfill").style.width = Math.min(100, 100 * chars / BUDGET) + "%";
-}
-
-async function api(path, opts) {
-  const r = await fetch(path, opts);
-  if (!r.ok) {
-    let detail = r.statusText;
-    try { detail = (await r.json()).detail || detail; } catch (e) {}
-    throw new Error(detail);
-  }
+async function api(path,opts){
+  const r=await fetch(path,opts);
+  if(!r.ok){let d=r.statusText;try{d=(await r.json()).detail||d;}catch(e){} throw new Error(d);}
   return r.json();
 }
 
-const PROVIDER_LABELS = { openai: "GPT-4.1 (OpenAI)", grok: "Grok 4.5 (xAI)", local: "Local (Ollama)" };
-let PROVIDERS = {};
-
-function providerAgents(p) {
-  return Object.entries(PROVIDERS[p] || {}).map(([k, v]) => `${k}=${v}`).join(" · ");
-}
-
-function updateMeta(s) {
-  const p = $("modelSel").value;
-  const sigs = s.signed_sections ? ` · ${s.signed_sections.toLocaleString()} sections carry concept signatures` : "";
-  $("meta").textContent =
-    `session ${s.session_id} · ${s.pages.toLocaleString()} pages across ` +
-    `${s.sources.length} sources${sigs} · agents: ${providerAgents(p)}`;
-}
-
-async function newSession(s) {
-  if (!s) s = await api("/api/session", { method: "POST" });
-  SID = s.session_id;
-  PROVIDERS = s.providers || { [s.provider]: s.models };
-  const sel = $("modelSel");
-  sel.innerHTML = "";
-  for (const p of Object.keys(PROVIDERS)) {
-    const opt = document.createElement("option");
-    opt.value = p;
-    opt.textContent = PROVIDER_LABELS[p] || p;
-    sel.appendChild(opt);
-  }
-  sel.value = s.provider;
-  sel.onchange = () => updateMeta(s);   // switch is logged server-side on next query
-  updateMeta(s);
-  $("chat").innerHTML = "";
-  setCtx(0, s.context_char_budget);
-  addMsg("atlas", "atlas",
-    "<p>New session. Ask a question across the Tanakh, Bible, and Quran — " +
-    "each answer runs the full probe → retrieval → gap → report → evidence pipeline " +
-    "and cites verse-level pages. Prior exchanges in this session are passed to the " +
-    "agents as context.</p>");
-}
-
-async function ask() {
-  const q = $("q").value.trim();
-  if (!q || BUSY || !SID) return;
-  BUSY = true; $("send").disabled = true; $("q").value = "";
-  addMsg("user", "you", "<p>" + esc(q) + "</p>");
-  const th = addMsg("atlas thinking", "atlas",
-    '<span class="thinking">running the pipeline (probe → retrieval → gap → report → evidence), typically 1–3 minutes<span class="dots"></span></span>');
-  try {
-    const r = await api("/api/query", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: SID, query: q, model: $("modelSel").value }),
-    });
-    th.remove();
-    const m = addMsg("atlas", "atlas", '<div class="report">' + renderMd(r.report_md) + "</div>");
-    m.querySelector(".bubble").insertAdjacentHTML("beforeend",
-      `<div class="time">answered in ${Math.round(r.elapsed_s)}s · exchange ${r.exchanges}` +
-      ` · ${PROVIDER_LABELS[r.provider] || r.provider}</div>`);
-    setCtx(r.context_chars, r.context_char_budget);
-  } catch (e) {
-    th.remove();
-    addMsg("error", "error", "<p>" + esc(e.message) + "</p>");
-  } finally {
-    BUSY = false; $("send").disabled = false; $("q").focus();
-  }
-}
-
-$("send").onclick = ask;
-$("q").addEventListener("keydown", e => {
-  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(); }
+/* ---------- tabs ---------- */
+document.querySelectorAll("nav .tab").forEach(t=>{
+  t.onclick=()=>{
+    document.querySelectorAll("nav .tab").forEach(x=>x.classList.remove("active"));
+    document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));
+    t.classList.add("active");
+    $("view-"+t.dataset.view).classList.add("active");
+    if(t.dataset.view==="graph" && !GRAPH_LOADED) initGraph();
+  };
 });
-$("clearBtn").onclick = async () => {
-  if (BUSY) return;
-  try {
-    // clear endpoint wipes the old session and returns a fresh one
-    const s = SID ? await api(`/api/session/${SID}/clear`, { method: "POST" }) : null;
-    await newSession(s);
-  } catch (e) {
-    SID = null;
-    await newSession();
+function showView(v){ document.querySelector(`nav .tab[data-view="${v}"]`).click(); }
+
+/* ================= QUERY VIEW ================= */
+function addMsg(cls,who,html){
+  const div=document.createElement("div"); div.className="msg "+cls;
+  div.innerHTML=`<div class="who">${who}</div><div class="bubble">${html}</div>`;
+  $("chat").appendChild(div); $("chat").scrollTop=$("chat").scrollHeight; return div;
+}
+function setCtx(chars,budget){
+  BUDGET=budget||BUDGET;
+  $("ctxlabel").textContent=`session context: ${chars.toLocaleString()} / ${BUDGET.toLocaleString()} chars (FIFO)`;
+  $("ctxfill").style.width=Math.min(100,100*chars/BUDGET)+"%";
+}
+const PROVIDER_LABELS={openai:"GPT-4.1 (OpenAI)",grok:"Grok 4.5 (xAI)",local:"Local (Ollama)"};
+let PROVIDERS={};
+function providerAgents(p){return Object.entries(PROVIDERS[p]||{}).map(([k,v])=>`${k}=${v}`).join(" · ");}
+function updateMeta(s){
+  const p=$("modelSel").value;
+  const sigs=s.signed_sections?` · ${s.signed_sections.toLocaleString()} sections carry concept signatures`:"";
+  $("meta").textContent=`session ${s.session_id} · ${s.pages.toLocaleString()} pages across ${s.sources.length} sources${sigs} · agents: ${providerAgents(p)}`;
+}
+function signalBox(sig){
+  if(!sig||!sig.length) return "";
+  const rows=sig.map(x=>{
+    const cls=x.kept?"row kept":"row";
+    const mark=x.kept?"✓ kept":"· gated out";
+    return `<div class="${cls}">${esc(x.ref)} <span style="opacity:.7">(${esc(x.tradition)})</span>` +
+           (x.top_concept?` — ${esc(x.top_concept)}`:"")+` <span style="opacity:.6">${mark}</span></div>`;
+  }).join("");
+  return `<div class="signalbox"><div class="lbl">🧿 concept-signal bucket — chapters found through the concept space, not text search</div>${rows}</div>`;
+}
+async function ask(){
+  const q=$("q").value.trim(); if(!q||BUSY||!SID) return;
+  BUSY=true; $("send").disabled=true; $("q").value="";
+  addMsg("user","you","<p>"+esc(q)+"</p>");
+  const th=addMsg("atlas thinking","atlas",'<span class="thinking">running the pipeline (probe → retrieval → gap → report → evidence), typically 1–3 minutes<span class="dots"></span></span>');
+  try{
+    const r=await api("/api/query",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({session_id:SID,query:q,model:$("modelSel").value})});
+    th.remove();
+    const m=addMsg("atlas","atlas",'<div class="report">'+renderMd(r.report_md)+"</div>"+signalBox(r.concept_signal));
+    m.querySelector(".bubble").insertAdjacentHTML("beforeend",
+      `<div class="time">answered in ${Math.round(r.elapsed_s)}s · exchange ${r.exchanges} · ${PROVIDER_LABELS[r.provider]||r.provider}</div>`);
+    setCtx(r.context_chars,r.context_char_budget);
+  }catch(e){ th.remove(); addMsg("error","error","<p>"+esc(e.message)+"</p>"); }
+  finally{ BUSY=false; $("send").disabled=false; $("q").focus(); }
+}
+$("send").onclick=ask;
+$("q").addEventListener("keydown",e=>{ if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();ask();} });
+
+/* ================= CONCEPT SEARCH VIEW ================= */
+async function conceptSearch(){
+  const text=$("searchText").value.trim();
+  if(!text){ $("searchStatus").textContent="paste some text first"; return; }
+  $("searchBtn").disabled=true; $("searchStatus").textContent="classifying…";
+  $("sigchips").innerHTML=""; $("searchResults").innerHTML="";
+  try{
+    const r=await api("/api/concept-search",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({session_id:SID,text})});
+    if(!r.signature.length){
+      $("searchStatus").textContent="no concept in the registry matched this text closely — try more specific wording.";
+      return;
+    }
+    $("searchStatus").textContent=`signature of ${r.signature.length} concepts · ${r.sections.length} chapters ranked · ${r.elapsed_s}s`;
+    $("sigchips").innerHTML=r.signature.map(c=>
+      `<span class="chip" data-cid="${esc(c.concept_id)}" title="${esc(c.definition)}">${esc(c.name)}<span class="w">${Math.round(c.weight*100)}%</span></span>`).join("");
+    $("sigchips").querySelectorAll(".chip").forEach(ch=>ch.onclick=()=>centerNode(ch.dataset.cid));
+    $("searchResults").innerHTML=r.sections.map((s,i)=>{
+      const dot=TRAD[s.tradition]||"";
+      const matched=s.matched_concepts.map(m=>`<b>${esc(m.name)}</b> ${m.weight}`).join(" · ");
+      return `<details class="card" data-sec="${esc(s.section_id)}">
+        <summary>
+          <span class="rank">${i+1}</span>
+          <span class="trad ${dot}"></span>
+          <span class="title">${esc(s.ref)}<span class="src">${esc(s.text_name)}</span></span>
+          <span class="score">${s.score.toFixed(3)}</span>
+        </summary>
+        <div class="body">
+          <div class="matched">shared concepts: ${matched}</div>
+          <div class="preview" data-loaded="0">loading…</div>
+          <div class="actions"><button data-sec="${esc(s.section_id)}" class="gbtn">Center in graph →</button></div>
+        </div>
+      </details>`;
+    }).join("");
+    $("searchResults").querySelectorAll("details.card").forEach(d=>{
+      d.addEventListener("toggle",async()=>{
+        if(!d.open) return;
+        const pv=d.querySelector(".preview");
+        if(pv.dataset.loaded==="1") return;
+        pv.dataset.loaded="1";
+        try{ const pr=await api(`/api/section/${encodeURIComponent(d.dataset.sec)}/preview`); pv.textContent=pr.preview; }
+        catch(e){ pv.textContent="(preview unavailable)"; }
+      });
+    });
+    $("searchResults").querySelectorAll(".gbtn").forEach(b=>b.onclick=()=>centerNode(b.dataset.sec));
+  }catch(e){ $("searchStatus").textContent="error: "+e.message; }
+  finally{ $("searchBtn").disabled=false; }
+}
+$("searchBtn").onclick=conceptSearch;
+
+/* ================= GRAPH VIEW ================= */
+let GRAPH_LOADED=false, GKINDS=[];
+async function initGraph(){
+  GRAPH_LOADED=true;
+  try{
+    const cs=await api("/api/concept-space");
+    $("gSeeds").innerHTML=cs.top_concepts.slice(0,24).map(c=>
+      `<span class="chip seed" data-cid="${esc(c.id)}" title="${esc(c.definition)}">${esc(c.label)}</span>`).join("");
+    $("gSeeds").querySelectorAll(".seed").forEach(s=>s.onclick=()=>centerNode(s.dataset.cid));
+    if(cs.top_concepts.length) centerNode(cs.top_concepts[0].id);
+  }catch(e){ $("gDef").textContent="graph unavailable: "+e.message; }
+}
+function setKinds(kinds,active){
+  const sel=$("gKinds");
+  const opts=[["conceptual,structural","section: conceptual + structural"],
+              ["conceptual","section: conceptual only"],
+              ["co_occurrence,co_variance","concept: co-occurrence + co-variance"],
+              ["co_occurrence","concept: co-occurrence only"]];
+  sel.innerHTML=opts.map(([v,l])=>`<option value="${v}">${l}</option>`).join("");
+  sel.value=active;
+}
+async function centerNode(nodeId,kinds){
+  showView("graph"); if(!GRAPH_LOADED){ await initGraph(); }
+  try{
+    const body={session_id:SID,node_id:nodeId};
+    if(kinds) body.kinds=kinds.split(",");
+    const g=await api("/api/graph/node",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    const isSection=g.center.type==="section";
+    setKinds(g.kinds, g.kinds.join(","));
+    $("gKinds").onchange=()=>centerNode(nodeId,$("gKinds").value);
+    drawGraph(g);
+    $("gTitle").textContent=g.center.label;
+    $("gDef").textContent=g.center.definition || (isSection? g.center.text_name+" · "+(g.center.tradition||"") : "");
+    let meta=`<div class="hint">${g.center.type}${g.center.usage!=null?" · used in "+g.center.usage+" chapters":""}</div>`;
+    if(isSection && g.center.signature){
+      meta+=`<div class="def">signature: ${g.center.signature.map(s=>esc(s.name)+" "+s.weight).join(", ")}</div>`;
+    }
+    meta+=`<div class="hint" style="margin-top:8px">${g.neighbors.length} neighbors — click a node to re-center</div>`;
+    $("gMeta").innerHTML=meta;
+  }catch(e){ $("gDef").textContent="node error: "+e.message; }
+}
+function drawGraph(g){
+  const svg=$("graphSvg"); const W=svg.clientWidth||800, H=svg.clientHeight||600;
+  const cx=W/2, cy=H/2;
+  const NS="http://www.w3.org/2000/svg";
+  while(svg.firstChild) svg.removeChild(svg.firstChild);
+  const n=g.neighbors.length, R=Math.min(W,H)/2-90;
+  const maxW=Math.max(...g.neighbors.map(x=>x.weight),0.0001);
+  // edges first
+  g.neighbors.forEach((nb,i)=>{
+    const a=(i/Math.max(n,1))*2*Math.PI - Math.PI/2;
+    const x=cx+R*Math.cos(a), y=cy+R*Math.sin(a);
+    const line=document.createElementNS(NS,"line");
+    line.setAttribute("x1",cx); line.setAttribute("y1",cy);
+    line.setAttribute("x2",x); line.setAttribute("y2",y);
+    line.setAttribute("class","gedge");
+    line.setAttribute("stroke-width",1+3*(nb.weight/maxW));
+    svg.appendChild(line);
+    const lbl=document.createElementNS(NS,"text");
+    lbl.setAttribute("x",(cx+x)/2); lbl.setAttribute("y",(cy+y)/2);
+    lbl.setAttribute("class","gedge-label"); lbl.setAttribute("text-anchor","middle");
+    lbl.textContent=nb.kind.replace("_"," ")+" "+nb.weight.toFixed(2);
+    svg.appendChild(lbl);
+  });
+  // neighbor nodes
+  g.neighbors.forEach((nb,i)=>{
+    const a=(i/Math.max(n,1))*2*Math.PI - Math.PI/2;
+    const x=cx+R*Math.cos(a), y=cy+R*Math.sin(a);
+    svg.appendChild(gnode(x,y,nb.node,false,()=>centerNode(nb.node.id)));
+  });
+  // center last (on top)
+  svg.appendChild(gnode(cx,cy,g.center,true,null));
+}
+function gnode(x,y,node,center,onclick){
+  const NS="http://www.w3.org/2000/svg";
+  const gg=document.createElementNS(NS,"g");
+  gg.setAttribute("class","gnode"+(center?" center":""));
+  gg.setAttribute("transform",`translate(${x},${y})`);
+  const c=document.createElementNS(NS,"circle");
+  const isSec=node.type==="section";
+  c.setAttribute("r",center?26:18);
+  c.setAttribute("fill",isSec? tradColor(node.tradition):"#332c22");
+  c.setAttribute("stroke","var(--gold-dim)"); c.setAttribute("stroke-width",1.2);
+  gg.appendChild(c);
+  const label=node.label.length>26?node.label.slice(0,25)+"…":node.label;
+  const t=document.createElementNS(NS,"text");
+  t.setAttribute("text-anchor","middle"); t.setAttribute("y",center?42:32);
+  t.textContent=label; gg.appendChild(t);
+  const title=document.createElementNS(NS,"title");
+  title.textContent=(node.definition||node.text_name||"")+(node.usage!=null?` (used in ${node.usage} chapters)`:"");
+  gg.appendChild(title);
+  if(onclick) gg.addEventListener("click",onclick);
+  return gg;
+}
+function tradColor(t){ return t==="Judaism"?"#3a5568":t==="Islam"?"#3a5a45":t==="Christianity"?"#5a4a2a":"#332c22"; }
+
+/* ================= SESSION ================= */
+async function newSession(s){
+  if(!s) s=await api("/api/session",{method:"POST"});
+  SID=s.session_id;
+  PROVIDERS=s.providers||{[s.provider]:s.models};
+  const sel=$("modelSel"); sel.innerHTML="";
+  for(const p of Object.keys(PROVIDERS)){
+    const opt=document.createElement("option"); opt.value=p; opt.textContent=PROVIDER_LABELS[p]||p; sel.appendChild(opt);
   }
+  sel.value=s.provider; sel.onchange=()=>updateMeta(s); updateMeta(s);
+  $("chat").innerHTML="";
+  setCtx(0,s.context_char_budget);
+  addMsg("atlas","atlas","<p>New session. Ask a question across the Tanakh, Bible, and Quran — "+
+    "each answer runs the full probe → retrieval → gap → report → evidence pipeline and cites verse-level pages. "+
+    "The <b>Concept Search</b> and <b>Graph</b> tabs explore the concept space directly.</p>");
+}
+$("clearBtn").onclick=async()=>{
+  if(BUSY) return;
+  try{ const s=SID?await api(`/api/session/${SID}/clear`,{method:"POST"}):null; await newSession(s); }
+  catch(e){ SID=null; await newSession(); }
 };
-$("exportBtn").onclick = () => {
-  if (SID) window.location.href = `/api/session/${SID}/export`;
-};
-newSession().catch(e => { $("meta").textContent = "failed to start session: " + e.message; });
+$("exportBtn").onclick=()=>{ if(SID) window.location.href=`/api/session/${SID}/export`; };
+newSession().catch(e=>{ $("meta").textContent="failed to start session: "+e.message; });
 </script>
 </body>
 </html>

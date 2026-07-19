@@ -884,10 +884,18 @@ def run_query(query, *, db=None, model="atlas-conceptor", embed_model="bge-m3",
     say("💾", f"trace:        {out_dir}/trace.jsonl")
     say("✅", f"done in {elapsed:.0f}s")
     con.close()
+    signal_summary = [
+        {"ref": index.meta[p]["ref"],
+         "tradition": index.tradition[index.meta[p]["source_id"]],
+         "kept": p in refd,
+         "top_concept": (signal_ev[p]["concepts"][0]["name"]
+                         if signal_ev.get(p, {}).get("concepts") else None)}
+        for p in signal_pages]
     return {"report_md": md, "report": report, "evidence": evidence,
             "gap_report": gap["gap_report"],
             "referenced_pages": refd, "out_dir": str(out_dir),
-            "elapsed_s": round(elapsed, 1)}
+            "elapsed_s": round(elapsed, 1),
+            "concept_signal": signal_summary}
 
 
 def main() -> int:

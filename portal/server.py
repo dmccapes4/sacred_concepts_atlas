@@ -36,12 +36,14 @@ from pydantic import BaseModel
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
-from atlas_lib import load_env, now_iso, say  # noqa: E402
+from atlas_lib import db_connect, load_env, now_iso, say  # noqa: E402
 from atlas_query import CLOUD_ROLE_MODELS, run_query  # noqa: E402
+from concept_space import ConceptSpace  # noqa: E402
 
 load_env()
 
 DB = os.environ.get("PORTAL_DB", str(ROOT / "db/atlas.db"))
+EMBED_MODEL = os.environ.get("PORTAL_EMBED_MODEL", "bge-m3")
 CLOUD = os.environ.get("PORTAL_CLOUD", "1") != "0"   # PORTAL_CLOUD=0 -> local Ollama agents
 MODEL = os.environ.get("PORTAL_MODEL", "atlas-conceptor")  # local fallback model
 CONTEXT_CHAR_BUDGET = int(os.environ.get("PORTAL_CONTEXT_CHARS", "12000"))
@@ -121,6 +123,24 @@ SESSIONS: dict[str, Session] = {}
 
 app = FastAPI(title="Sacred Concepts Atlas — Query Portal")
 
+# Concept space is read-only and shared across sessions: load lazily once per
+# run_id (the frozen ingestion run) and cache. A separate connection because
+# it is read-only and may be touched concurrently with a query's own.
+_SPACES: dict[str, ConceptSpace] = {}
+_SPACE_LOCK = threading.Lock()
+
+
+def get_space(run_id: str | None = None) -> ConceptSpace:
+    key = run_id or "__latest__"
+    with _SPACE_LOCK:
+        sp = _SPACES.get(key)
+        if sp is None:
+            sp = ConceptSpace(db_connect(DB), EMBED_MODEL, run_id)
+            _SPACES[key] = sp
+            if key == "__latest__":
+                _SPACES[sp.run_id] = sp
+        return sp
+
 
 def corpus_stats() -> dict:
     import sqlite3
@@ -141,6 +161,17 @@ class QueryBody(BaseModel):
     session_id: str
     query: str
     model: str | None = None       # provider choice: "openai" | "grok" | "local"
+
+
+class ConceptSearchBody(BaseModel):
+    session_id: str | None = None
+    text: str
+
+
+class NodeBody(BaseModel):
+    session_id: str | None = None
+    node_id: str
+    kinds: list[str] | None = None
 
 
 def get_session(sid: str) -> Session:
@@ -217,6 +248,7 @@ def query(body: QueryBody):
         s.push_exchange(q, summary, result["referenced_pages"])
         return {"report_md": result["report_md"],
                 "referenced_pages": result["referenced_pages"],
+                "concept_signal": result.get("concept_signal", []),
                 "provider": s.provider,
                 "elapsed_s": result["elapsed_s"],
                 "context_chars": s.context_chars(),
@@ -225,6 +257,69 @@ def query(body: QueryBody):
     finally:
         RUN_LOCK.release()
         say("🌐", f"[portal {s.id}] done in {time.time() - t0:.0f}s")
+
+
+@app.get("/api/concept-space")
+def concept_space_meta():
+    """Frozen-run metadata + seed concepts for the graph view."""
+    try:
+        sp = get_space()
+    except ValueError as e:
+        raise HTTPException(503, str(e))
+    return {"run_id": sp.run_id, "n_concepts": len(sp.cid),
+            "n_signed_sections": len(sp.sig),
+            "top_concepts": sp.top_concepts(40)}
+
+
+@app.post("/api/concept-search")
+def concept_search(body: ConceptSearchBody):
+    """Route+classify pasted text into a query signature; rank sections by
+    signature similarity. Read-only, describe-mode (never mints concepts)."""
+    text = body.text.strip()
+    if not text:
+        raise HTTPException(400, "empty text")
+    try:
+        sp = get_space()
+    except ValueError as e:
+        raise HTTPException(503, str(e))
+    t0 = time.time()
+    result = sp.classify_text(text)
+    result["elapsed_s"] = round(time.time() - t0, 2)
+    result["text_chars"] = len(text)
+    if body.session_id and body.session_id in SESSIONS:
+        SESSIONS[body.session_id].log(
+            {"event": "concept_search", "text_chars": len(text),
+             "run_id": sp.run_id,
+             "signature": [s["name"] for s in result["signature"]],
+             "top_sections": [s["ref"] for s in result["sections"][:8]],
+             "elapsed_s": result["elapsed_s"]})
+    return result
+
+
+@app.get("/api/section/{section_id:path}/preview")
+def section_preview(section_id: str):
+    sp = get_space()
+    text = sp.section_preview(section_id)
+    if not text:
+        raise HTTPException(404, "unknown section")
+    return {"section_id": section_id, "preview": text}
+
+
+@app.post("/api/graph/node")
+def graph_node(body: NodeBody):
+    """Center node + edges to neighbors (click a neighbor to re-center)."""
+    try:
+        sp = get_space()
+    except ValueError as e:
+        raise HTTPException(503, str(e))
+    result = sp.node(body.node_id, kinds=body.kinds)
+    if body.session_id and body.session_id in SESSIONS:
+        SESSIONS[body.session_id].log(
+            {"event": "graph_node", "node_id": body.node_id,
+             "center": result["center"]["label"],
+             "kinds": result["kinds"],
+             "n_neighbors": len(result["neighbors"])})
+    return result
 
 
 app.mount("/", StaticFiles(directory=Path(__file__).parent / "static",
